@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NB-IoT WebUSB go/no-go 测试</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 12px; max-width: 720px; margin-inline: auto; line-height: 1.5; }
+  h1 { font-size: 1.25rem; margin: .2em 0 .4em; }
+  .card { border: 1px solid #8884; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+  .note { font-size: .85rem; opacity: .8; }
+  button { font-size: 1rem; padding: 8px 14px; border-radius: 8px; border: 1px solid #888; background: #2f6fdb; color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: inherit; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button + button { margin-left: 6px; }
+  .quick { margin: 6px 4px 0 0; padding: 4px 10px; font-size: .9rem; }
+  #envcheck div { margin: 2px 0; }
+  .ok::before { content: "✅ "; }
+  .bad::before { content: "❌ "; }
+  .warn::before { content: "⚠️ "; }
+  #status { font-weight: 600; }
+  #log { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; white-space: pre-wrap; word-break: break-all; background: #000; color: #0f0; padding: 10px; border-radius: 8px; height: 320px; overflow-y: auto; }
+  #log .tx { color: #ffd54f; }
+  #log .rx { color: #69f0ae; }
+  #log .sys { color: #90a4ae; }
+  #log .hl  { color: #ff8a80; font-weight: 700; }
+  #verdict { font-size: 1.3rem; font-weight: 700; text-align: center; padding: 10px; border-radius: 10px; margin-top: 8px; }
+  #verdict.go { background: #1b5e20; color: #fff; }
+  #verdict.nogo { background: #b71c1c; color: #fff; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  td, th { border: 1px solid #8886; padding: 4px 8px; text-align: left; }
+  input[type=text] { font-size: 1rem; padding: 8px; border-radius: 8px; border: 1px solid #888; width: calc(100% - 90px); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>NB-IoT 测试棒 · WebUSB go/no-go</h1>
+<div class="card note">
+  用途：验证安卓 Chrome 能否经 WebUSB 直连 BC28 测试棒（CH340）收发 AT。<br>
+  前提：① 页面必须是 HTTPS（本页已满足）② 厚德 App 已完全关闭 ③ 测试棒经 OTG 线插在手机上 ④ 波特率 9600（自动设置）。
+</div>
+
+<div class="card" id="envcheck">
+  <b>环境自检</b>
+  <div id="envsecure"></div>
+  <div id="envusb"></div>
+  <div id="envserial"></div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <button id="btnConnect">① 请求设备并连接</button>
+    <button id="btnDisconnect" class="ghost" disabled>断开</button>
+  </div>
+  <div id="status">未连接</div>
+</div>
+
+<div class="card" id="autoCard" hidden>
+  <button id="btnAuto">② 自动测试：AT ×10</button>
+  <div id="verdict" hidden></div>
+  <div id="resultTable"></div>
+</div>
+
+<div class="card">
+  <b>手动 AT</b>
+  <div class="row">
+    <input type="text" id="cmdInput" placeholder="输入 AT 命令，回车发送" autocomplete="off">
+    <button id="btnSend">发送</button>
+  </div>
+  <div>
+    <button class="quick" data-cmd="AT+CSQ">AT+CSQ</button>
+    <button class="quick" data-cmd="AT+NUESTATS">AT+NUESTATS</button>
+    <button class="quick" data-cmd="AT+NUESTATS=CELL">NUESTATS=CELL</button>
+    <button class="quick" data-cmd="AT+NBAND?">AT+NBAND?</button>
+    <button class="quick" data-cmd="AT+CFUN?">AT+CFUN?</button>
+    <button class="quick" data-cmd="AT+CGMM">AT+CGMM</button>
+  </div>
+  <div class="note" style="margin-top:6px">提示：AT+NUESTATS 输出中的 ECL 行（覆盖等级）会自动红色高亮；AT+NBAND? 应包含 8。</div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <b style="flex:1">日志</b>
+    <button id="btnCopy" class="ghost" style="font-size:.85rem;padding:4px 10px">复制全部</button>
+    <button id="btnClear" class="ghost" style="font-size:.85rem;padding:4px 10px">清空</button>
+  </div>
+  <div id="log"></div>
+</div>
+
+<script>
+/* ===== CH340/CH341 WebUSB 驱动 =====
+   来源：esptool-js v0.7.0 lib/webusb.js（Apache License 2.0, Copyright Espressif Systems）
+   https://github.com/espressif/esptool-js — 仅去掉 ESM import/export，逻辑未改。 */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const WCH_VID = 0x1a86;
+const CH343_PID = 0x55d3;
+const CH341_BAUDBASE_FACTOR = 1532620800;
+const CH341_BAUDBASE_DIVMAX = 3;
+const CH340_INIT = 0xa1;
+const CH340_SET_BAUDRATE = 0x9a;
+const CH340_SET_HANDSHAKE = 0xa4;
+const VENDOR_CLASS = 0xff;
+const MAX_TRANSFER_SIZE = 64;
+function assertTransferOk(result, action) {
+    if (result.status !== "ok") {
+        throw new Error(`CH340 ${action} failed: ${result.status}`);
+    }
+}
+class WebUSBSerialPort {
+    constructor(usbDevice) {
+        this.usbDevice = usbDevice;
+        this.readable = null;
+        this.writable = null;
+        this.interfaceNumber = null;
+        this.endpointIn = null;
+        this.endpointOut = null;
+        this.currentDtr = false;
+        this.currentRts = false;
+        this.controlQueue = Promise.resolve();
+        this.readLoopRunning = false;
+    }
+    static async requestPort() {
+        if (!navigator.usb) {
+            throw new Error("WebUSB is not available in this browser");
+        }
+        const device = await navigator.usb.requestDevice({
+            filters: [{ vendorId: WCH_VID }],
+        });
+        if (device.productId === CH343_PID) {
+            throw new Error("CH343 is a CDC device; use the Web Serial API instead of WebUSBSerialPort");
+        }
+        return new WebUSBSerialPort(device);
+    }
+    getInfo() {
+        return {
+            usbVendorId: this.usbDevice.vendorId,
+            usbProductId: this.usbDevice.productId,
+        };
+    }
+    async open(options = {}) {
+        var _a;
+        const baudRate = (_a = options.baudRate) !== null && _a !== void 0 ? _a : 115200;
+        if (this.usbDevice.opened) {
+            await this.close();
+        }
+        await this.usbDevice.open();
+        if (!this.usbDevice.configuration || this.usbDevice.configuration.configurationValue !== 1) {
+            await this.usbDevice.selectConfiguration(1);
+        }
+        this.claimBulkInterface();
+        if (this.interfaceNumber === null || this.endpointIn === null || this.endpointOut === null) {
+            throw new Error("No CH340 vendor bulk IN/OUT interface found");
+        }
+        try {
+            await this.usbDevice.claimInterface(this.interfaceNumber);
+        }
+        catch (error) {
+            throw new Error(`Unable to claim the CH340 USB interface. On desktop OS the kernel driver often owns the device. ${error}`);
+        }
+        await this.vendorOut(CH340_INIT, 0, 0);
+        await this.setBaudRate(baudRate);
+        await this.setSignals({ dataTerminalReady: false, requestToSend: false });
+        this.createStreams();
+    }
+    async setBaudRate(baudRate) {
+        let factor = Math.floor(CH341_BAUDBASE_FACTOR / baudRate);
+        let divisor = CH341_BAUDBASE_DIVMAX;
+        while (factor > 0xfff0 && divisor > 0) {
+            factor >>= 3;
+            divisor--;
+        }
+        if (factor > 0xfff0) {
+            throw new Error(`Baudrate ${baudRate} is not supported by CH340`);
+        }
+        factor = 0x10000 - factor;
+        const a = (factor & 0xff00) | divisor;
+        const b = factor & 0xff;
+        await this.vendorOut(CH340_SET_BAUDRATE, 0x1312, a);
+        await this.vendorOut(CH340_SET_BAUDRATE, 0x0f2c, b);
+        await sleep(50);
+    }
+    async setSignals(signals) {
+        if (signals.dataTerminalReady !== undefined) {
+            this.currentDtr = signals.dataTerminalReady;
+        }
+        if (signals.requestToSend !== undefined) {
+            this.currentRts = signals.requestToSend;
+        }
+        const value = ~((this.currentDtr ? 1 << 5 : 0) | (this.currentRts ? 1 << 6 : 0)) & 0xffff;
+        await this.vendorOut(CH340_SET_HANDSHAKE, value, 0);
+    }
+    async close() {
+        this.readLoopRunning = false;
+        this.readable = null;
+        this.writable = null;
+        if (this.usbDevice.opened) {
+            if (this.interfaceNumber !== null) {
+                try {
+                    await this.usbDevice.releaseInterface(this.interfaceNumber);
+                }
+                catch {
+                }
+            }
+            await this.usbDevice.close();
+        }
+        this.interfaceNumber = null;
+        this.endpointIn = null;
+        this.endpointOut = null;
+    }
+    asSerialPort() {
+        return this;
+    }
+    claimBulkInterface() {
+        const config = this.usbDevice.configuration;
+        if (!config) {
+            throw new Error("USB device has no configuration");
+        }
+        for (const iface of config.interfaces) {
+            for (const alternate of iface.alternates) {
+                if (alternate.interfaceClass !== VENDOR_CLASS) {
+                    continue;
+                }
+                let inEndpoint = null;
+                let outEndpoint = null;
+                for (const endpoint of alternate.endpoints) {
+                    if (endpoint.type === "bulk" && endpoint.direction === "in") {
+                        inEndpoint = endpoint.endpointNumber;
+                    }
+                    else if (endpoint.type === "bulk" && endpoint.direction === "out") {
+                        outEndpoint = endpoint.endpointNumber;
+                    }
+                }
+                if (inEndpoint !== null && outEndpoint !== null) {
+                    this.interfaceNumber = iface.interfaceNumber;
+                    this.endpointIn = inEndpoint;
+                    this.endpointOut = outEndpoint;
+                    return;
+                }
+            }
+        }
+    }
+    async vendorOut(request, value, index) {
+        const run = this.controlQueue.then(async () => {
+            if (!this.usbDevice.opened) {
+                throw new Error("CH340 device is not open");
+            }
+            const result = await this.usbDevice.controlTransferOut({
+                requestType: "vendor",
+                recipient: "device",
+                request,
+                value,
+                index,
+            });
+            assertTransferOk(result, `control request 0x${request.toString(16)}`);
+        });
+        this.controlQueue = run.then(() => undefined, () => undefined);
+        await run;
+    }
+    createStreams() {
+        const endpointIn = this.endpointIn;
+        const endpointOut = this.endpointOut;
+        if (endpointIn === null || endpointOut === null) {
+            throw new Error("CH340 bulk endpoints are not configured");
+        }
+        this.readLoopRunning = true;
+        this.readable = new ReadableStream({
+            pull: async (controller) => {
+                while (this.readLoopRunning && this.usbDevice.opened) {
+                    try {
+                        const result = await this.usbDevice.transferIn(endpointIn, MAX_TRANSFER_SIZE);
+                        if (result.status === "stall") {
+                            await this.usbDevice.clearHalt("in", endpointIn);
+                            continue;
+                        }
+                        if (result.status === "ok" && result.data && result.data.byteLength > 0) {
+                            controller.enqueue(new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength));
+                            return;
+                        }
+                    }
+                    catch (error) {
+                        if (!this.readLoopRunning || !this.usbDevice.opened) {
+                            return;
+                        }
+                        throw error;
+                    }
+                }
+            },
+            cancel: () => {
+                this.readLoopRunning = false;
+            },
+        });
+        this.writable = new WritableStream({
+            write: async (chunk) => {
+                if (!this.usbDevice.opened) {
+                    throw new Error("CH340 device is not open");
+                }
+                const result = await this.usbDevice.transferOut(endpointOut, chunk);
+                assertTransferOk(result, "bulk OUT");
+            },
+        });
+    }
+}
+/* ===== 驱动结束 ===== */
+
+/* ===== 应用逻辑 ===== */
+const $ = (id) => document.getElementById(id);
+const logEl = $("log"), statusEl = $("status");
+let port = null, writer = null, reader = null;
+let lineBuf = "";
+let lineWaiter = null; // resolve(dataLines) 当收到一行
+
+function ts() { const d = new Date(); return d.toTimeString().slice(0, 8); }
+function log(text, cls = "rx") {
+    const span = document.createElement("span");
+    span.className = cls;
+    span.textContent = `[${ts()}] ${text}\n`;
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+    while (logEl.childNodes.length > 2000) logEl.removeChild(logEl.firstChild);
+}
+
+// 环境自检
+(function envCheck() {
+    const secure = window.isSecureContext;
+    $("envsecure").textContent = `安全上下文（HTTPS/localhost）：${secure ? "满足" : "不满足！WebUSB 将被浏览器拒绝"}`;
+    $("envsecure").className = secure ? "ok" : "bad";
+    const usb = !!navigator.usb;
+    $("envusb").textContent = `WebUSB API：${usb ? "可用" : "不可用（非 Chrome/Edge 或被禁用）"}`;
+    $("envusb").className = usb ? "ok" : "bad";
+    const ser = !!navigator.serial;
+    $("envserial").textContent = `原生 Web Serial API：${ser ? "有（桌面 Chrome）" : "无（安卓 Chrome 属正常，走 WebUSB 路线）"}`;
+    $("envserial").className = "sys";
+})();
+
+function explainError(e) {
+    const n = e && e.name, m = (e && e.message) || String(e);
+    if (n === "NotFoundError") return "你在设备选择框点了取消（未选设备）";
+    if (n === "SecurityError") return "页面不在安全上下文（需 HTTPS 或 localhost）";
+    if (/claim/i.test(m)) return "CH340 接口被占用：请彻底关闭厚德 App，或拔插一次测试棒再试";
+    if (/No such device|disconnect/i.test(m)) return "设备已拔出，请重新插并重新点连接";
+    return m;
+}
+
+async function connect() {
+    try {
+        statusEl.textContent = "请求设备…（请在弹窗中选择测试棒并授权）";
+        port = await WebUSBSerialPort.requestPort();
+        const info = port.getInfo();
+        log(`选中设备 VID ${(info.usbVendorId || 0).toString(16)} PID ${(info.usbProductId || 0).toString(16)}，打开中（9600bps）…`, "sys");
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        pipeRead();
+        statusEl.textContent = "已连接（CH340 @ 9600）";
+        $("btnDisconnect").disabled = false;
+        $("autoCard").hidden = false;
+        log("连接成功。", "sys");
+    } catch (e) {
+        const msg = explainError(e);
+        statusEl.textContent = "连接失败：" + msg;
+        log("连接失败：" + msg, "sys");
+        port = null;
+    }
+}
+
+async function disconnect() {
+    try { if (reader) await reader.cancel(); } catch (e) {}
+    try { if (writer) writer.releaseLock(); } catch (e) {}
+    try { if (port) await port.close(); } catch (e) {}
+    port = writer = reader = null;
+    statusEl.textContent = "已断开";
+    $("btnDisconnect").disabled = true;
+    log("已断开。", "sys");
+}
+
+function pipeRead() {
+    (async () => {
+        reader = port.readable.getReader();
+        const dec = new TextDecoder();
+        try {
+            for (;;) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                const s = dec.decode(value, { stream: true });
+                for (const ch of s) {
+                    if (ch === "\n" || ch === "\r") {
+                        if (lineBuf) {
+                            const line = lineBuf;
+                            lineBuf = "";
+                            const cls = /ECL/i.test(line) ? "hl" : "rx";
+                            log("← " + line, cls);
+                            if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
+                        }
+                    } else {
+                        lineBuf += ch;
+                    }
+                }
+            }
+        } catch (e) {
+            log("读取中断：" + explainError(e), "sys");
+            statusEl.textContent = "读取中断（可拔插设备后重连）";
+        }
+    })();
+}
+
+async function sendCmd(cmd, timeoutMs = 3000) {
+    if (!port || !writer) { log("未连接。", "sys"); return null; }
+    log("→ " + cmd, "tx");
+    await writer.write(new TextEncoder().encode(cmd + "\r\n"));
+    // 收集本命令的响应行，直到收到 OK/ERROR 或超时
+    const lines = [];
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        const left = deadline - Date.now();
+        if (left <= 0) break;
+        const line = await new Promise((res) => { lineWaiter = res; setTimeout(() => { if (lineWaiter === res) { lineWaiter = null; res(null); } }, left); });
+        if (line === null) break;
+        lines.push(line);
+        if (/^(OK|ERROR|\+CME ERROR)/i.test(line)) break;
+    }
+    return lines;
+}
+
+// 自动测试：AT ×10
+$("btnAuto").addEventListener("click", async () => {
+    const btn = $("btnAuto");
+    btn.disabled = true;
+    const rows = [];
+    for (let i = 1; i <= 10; i++) {
+        const lines = await sendCmd("AT");
+        const ok = lines && lines.some((l) => /^OK/i.test(l));
+        rows.push([i, lines && lines.length ? lines.join(" / ") : "（无响应）", ok]);
+        if (i < 10) await sleep(700);
+    }
+    const pass = rows.filter((r) => r[2]).length;
+    const v = $("verdict");
+    v.hidden = false;
+    v.className = pass === 10 ? "go" : "nogo";
+    v.textContent = pass === 10 ? `GO ✅  10/10 全部 OK` : `NO-GO ❌  ${pass}/10 通过（失败 ${10 - pass}）`;
+    let html = `<table><tr><th>#</th><th>响应</th><th>判定</th></tr>`;
+    for (const [i, resp, ok] of rows) html += `<tr><td>${i}</td><td>${escapeHtml(resp)}</td><td>${ok ? "✅" : "❌"}</td></tr>`;
+    html += `</table>`;
+    $("resultTable").innerHTML = html;
+    log(`自动测试完成：${pass}/10 → ${pass === 10 ? "GO" : "NO-GO"}`, "sys");
+    btn.disabled = false;
+    btn.textContent = "② 重新自动测试";
+});
+
+function escapeHtml(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+// 手动发送
+async function sendManual(cmd) {
+    cmd = cmd.trim();
+    if (!cmd) return;
+    if (port && writer) await sendCmd(cmd, cmd.toUpperCase() === "AT+NUESTATS" ? 5000 : 3000);
+    else log("未连接，先点①连接。", "sys");
+}
+$("btnSend").addEventListener("click", () => { sendManual($("cmdInput").value); $("cmdInput").value = ""; });
+$("cmdInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { sendManual($("cmdInput").value); $("cmdInput").value = ""; } });
+document.querySelectorAll(".quick").forEach((b) => b.addEventListener("click", () => sendManual(b.dataset.cmd)));
+
+$("btnConnect").addEventListener("click", connect);
+$("btnDisconnect").addEventListener("click", disconnect);
+$("btnClear").addEventListener("click", () => { logEl.textContent = ""; });
+$("btnCopy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(logEl.textContent); $("btnCopy").textContent = "已复制"; setTimeout(() => $("btnCopy").textContent = "复制全部", 1200); } catch (e) { log("复制失败：" + e.message, "sys"); }
+});
+
+// 页面加载完记录一条
+log("go-no-go 页面就绪。库：esptool-js CH340 WebUSB 驱动（内联）。", "sys");
+</script>
+</body>
+</html>
