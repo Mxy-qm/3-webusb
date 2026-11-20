@@ -4,6 +4,43 @@
 
 ---
 
+## v0.7.4-alpha · 2026-11-20
+
+**连接键恢复完整文案 + 语言栏搬到标签行；open 被拒自动重试；诊断页三语言**
+
+### 顶栏布局（P6）
+v0.7.3 为了塞下标题，把连接键在窄屏缩成了一个圆点——实测下来**看不出跟"连接"有关**。重新分配空间：
+
+- 顶栏只留 **logo + 标题 + 连接状态**，连接键恢复完整文字：`已连接 / 未连接`（英 `Connected / Disconnected`），颜色照旧描边灰 vs 绿底白字
+- **语言栏搬到「简单 / 高级」那一行的右侧**，收缩成短码 `EN / 简 / 繁` + 地球图标（`title` 给完整语言名）
+- 实测 360/375/390px 中英文**全部单行**、标题不截断；360px 英文时连接键 133px、标题 156/156
+
+为什么不用"语言留顶栏 + 英文缩成 On/Off"：未连接态才是现场最需要看懂的状态，它偏偏最长（`Disconnected` 133px），缩词会牺牲语义。
+
+### open 被拒自动重试
+现场日志里 `USBDevice.open()` 被系统拒绝（`SecurityError: Access denied`）后，4 秒后再试往往就成功了——纯属 USB 会话抖了一下。新增 `openWithRetry()`：**0 / 800 / 1600ms 三次尝试**，只在 `SecurityError` 时重试，日志逐次记录 `open 失败（n/3）` 与 `open 重试成功（第 n 次）`。
+
+### 错误文案分开（关键修复）
+`explainError()` 原来把所有 `SecurityError` 一律翻译成"页面必须在 HTTPS 下打开"——而 Chromium 的 `USBDevice::open()` 在所有"系统拒绝"场景下抛的就是 `SecurityError: Access denied.`（见 [Chromium usb_device.cc](https://chromium.googlesource.com/chromium/src/+/19d2cb1a46cc964dba7c68ebf49c9b9f8786dae6/third_party/blink/renderer/modules/webusb/usb_device.cc)）。结果是把排障引向完全错误的方向。现在按 message 分流：
+- `/access denied|permission/` → 新文案 `openDenied`：「系统拒绝打开设备…请拔插一次；若反复出现换 OTG 线」
+- 其余 → 仍是 `notSecure`
+
+### 未连接 ≠ 掉线
+新增 `state.everConnected`：**从没连过**时卡片显示「等待连接」、保持中性样式（原来一打开页面就红字喊"设备已断开"、还套虚线灰框）；连过再掉才算"已断开"。
+
+### go-no-go.html
+- **删掉顶部「用途」说明卡**（用户要求）
+- **三语言**：中 / 繁 / 英，覆盖静态文案、状态行、日志、错误提示、自动测试结论表
+- **语言与产品页共用 `localStorage.nbtest.lang`**：产品页选过就跟着走，诊断页改了产品页也变；从没设过 → 默认英语
+- 顶部加语言下拉（`EN / 简 / 繁`）；`<title>`、`<html lang>` 同步
+- 错误文案同步修正：`SecurityError` 也按 message 分流成 `errOpenDenied` / `errNotSecure`
+- 状态行、自动测试结论表在切语言时会重新渲染（不是只换静态文字）
+
+### 验证
+- `_tmp/test-age.mjs` **42 项**全过（新增：语言栏在标签行、英文 `Disconnected`、openWithRetry 存在、openDenied 存在、未连接时卡片=等待连接且非 offline 样式）
+- `_tmp/test-openretry.mjs` **6 项**全过：假设备前两次 `open()` 拒绝、第三次成功 → 确认重试 3 次、日志记下 2 次失败与 1 次成功、最终连上、弹窗不报错
+- `_tmp/test-gng-lang.mjs`：诊断页默认英语、切中/繁正确、`<html lang>` 同步、与产品页互相跟随、零 JS 报错
+
 ## v0.7.3-alpha · 2026-11-20
 
 **顶栏：加公司 logo + 三档响应式布局；标签文案对齐英文**

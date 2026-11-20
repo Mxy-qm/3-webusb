@@ -34,16 +34,11 @@
   @media (min-width: 461px) {
     .brand h1 { border-left: 1px solid var(--line); padding-left: 9px; margin-left: 1px; }
   }
-  /* 窄屏（<460px）三件事，只为「单行放得下」：
-     ① 横向组合 logo 要 112px，换方形标志只要 32px；
-     ② 连接键只留状态圆点（文字交给弹窗和 aria-label），省下约 80px；
-     ③ 标题字号略缩。实测只有这个组合能让英文长标题完整显示且不换行。 */
+  /* 窄屏（<460px）：横向组合 logo 要 112px，换方形标志只要 32px。
+     连接键的文字保留——顶栏现在只有「logo + 标题 + 连接状态」三个元素，放得下。 */
   @media (max-width: 460px) {
     .brand .bwide { display: none; }
     .brand .bnarrow { display: block; }
-    #connChipText { display: none; }
-    #btnConnChip { padding: 9px 12px; }
-    #btnConnChip .dot { width: 10px; height: 10px; }
     h1 { font-size: .98rem; }
   }
   @media (max-width: 380px) { header { gap: 8px; } .brand .bnarrow { height: 27px; } h1 { font-size: .92rem; } }
@@ -79,9 +74,13 @@
   .muted { color: var(--muted); font-size: .85rem; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
-  nav { display: flex; gap: 8px; margin-bottom: 12px; }
-  nav button { flex: 1; background: #fff; color: var(--g700); border: 1px solid var(--line); }
+  nav { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+  nav button { flex: 1 1 0; background: #fff; color: var(--g700); border: 1px solid var(--line); }
   nav button.active { background: var(--g600); color: #fff; border-color: var(--g600); }
+  /* 语言选择器：顶栏腾给「logo + 标题 + 连接状态」，语言放这里（短码 EN/简/繁 + 地球图标） */
+  .langpick { display: flex; align-items: center; gap: 4px; flex: none; }
+  .langpick svg { width: 16px; height: 16px; color: var(--muted); display: block; }
+  #langSel { padding: 7px 20px 7px 6px; background-position: right 6px center; }
 
   .signal { text-align: center; padding: 22px 14px; border-radius: 16px; border: 2px solid var(--line); background: #fff; margin-bottom: 14px; transition: border-color .25s, background .25s; }
   .signal.g1 { border-color: var(--g600); background: var(--g50); }
@@ -177,13 +176,8 @@
     <h1 data-i18n="title">NB-IoT 信号测试</h1>
   </div>
   <div class="hdr-actions">
-    <select id="langSel" aria-label="Language">
-      <option value="en">English</option>
-      <option value="zh">简体中文</option>
-      <option value="zhHant">繁體中文</option>
-    </select>
     <button id="btnConnChip" class="chip-conn" type="button">
-      <span class="dot"></span><span id="connChipText" data-i18n="connect">连接</span>
+      <span class="dot"></span><span id="connChipText" data-i18n="notConnected">未连接</span>
     </button>
   </div>
 </header>
@@ -204,6 +198,16 @@
 <nav>
   <button id="tabSimple" class="active" data-i18n="tabSimple">简单</button>
   <button id="tabAdvanced" data-i18n="tabAdvanced">高级</button>
+  <span class="langpick">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"></path>
+    </svg>
+    <select id="langSel" aria-label="Language" title="Language / 语言 / 語言">
+      <option value="en">EN</option>
+      <option value="zh">简</option>
+      <option value="zhHant">繁</option>
+    </select>
+  </span>
 </nav>
 
 <section id="viewSimple">
@@ -959,7 +963,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.3-alpha";
+const APP_VERSION = "0.7.4-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -971,7 +975,12 @@ const I18N = {
   disconnect: { zh: "断开", zhHant: "中斷", en: "Disconnect" },
   close: { zh: "关闭", zhHant: "關閉", en: "Close" },
   connected: { zh: "已连接", zhHant: "已連線", en: "Connected" },
-  notConnected: { zh: "未连接", zhHant: "未連線", en: "Not connected" },
+  notConnected: { zh: "未连接", zhHant: "未連線", en: "Disconnected" },
+  openDenied: {
+    zh: "系统拒绝打开设备（Access denied）。请拔插一次测试棒再试；若反复出现，换一根 OTG 线或换个 USB 口。",
+    zhHant: "系統拒絕開啟裝置（Access denied）。請拔插一次測試棒再試；若反覆出現，換一條 OTG 線或換個 USB 埠。",
+    en: "The system denied access to the device (Access denied). Unplug and replug the dongle, then try again; if it keeps happening, try another OTG cable or USB port.",
+  },
   connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", zhHant: "需要 HTTPS 頁面、測試棒已插好、厚德 App 已完全關閉。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
   tabSimple: { zh: "简单", zhHant: "簡單", en: "Simple" },
   tabAdvanced: { zh: "高级", zhHant: "高級", en: "Advanced" },
@@ -1081,6 +1090,7 @@ const state = {
   snapKey: null,       // 快照指纹（RX time）：只有它变了才说明模组给了新数据
   ageTimer: null,      // 年龄条/保存提示的每秒刷新定时器
   lastLink: null,      // 上一次的链路状态，用于只在切换时重绘
+  everConnected: false, // 本次会话是否成功连过——区分"从没连过"和"连上又掉了"
   watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
@@ -1195,9 +1205,34 @@ async function runCmd(text, timeoutMs) {
 function explainError(e) {
   const m = (e && e.message) || String(e);
   if (e && e.name === "NotFoundError") return t("cancelled");
-  if (e && e.name === "SecurityError") return t("notSecure");
+  // SecurityError 有两个完全不同的来源，必须分开报，否则会把排障引到错误方向：
+  //   ① 我们自己抛的"页面不在安全上下文"
+  //   ② USBDevice.open() 被操作系统拒绝（Chromium 固定用 "Access denied." 表达）
+  if (e && e.name === "SecurityError") {
+    return /access denied|permission/i.test(m) ? t("openDenied") : t("notSecure");
+  }
   if (/claim|busy|占用/i.test(m)) return t("busy");
   return m;
+}
+
+// USBDevice.open() 被系统拒绝（Access denied）多半是"USB 会话抖了一下"，
+// 拔插/稍等就能恢复。这里自动重试，省掉用户手动点第二次（现场日志里 14:32:45 那次就是 4 秒后自己好了）。
+async function openWithRetry(port, opts) {
+  const DELAYS = [0, 800, 1600];
+  let lastErr;
+  for (let i = 0; i < DELAYS.length; i++) {
+    if (DELAYS[i]) await sleep(DELAYS[i]);
+    try {
+      await port.open(opts);
+      if (i > 0) log(`open 重试成功（第 ${i + 1} 次）`, "sys");
+      return;
+    } catch (e) {
+      lastErr = e;
+      log(`open 失败（${i + 1}/${DELAYS.length}）：${(e && e.name) || "Error"} / ${(e && e.message) || e}`, "sys");
+      if (!(e && e.name === "SecurityError")) break; // 只有"被系统拒绝"值得重试
+    }
+  }
+  throw lastErr;
 }
 
 function openModal() { $("connMask").hidden = false; }
@@ -1247,14 +1282,14 @@ async function connect() {
       .some((i) => i.alternates.some((a) => a.interfaceClass === 0xff));
     if (hasVendor) {
       port = new WebUSBSerialPort(device);
-      await port.open({ baudRate: 9600 });
+      await openWithRetry(port, { baudRate: 9600 });
     } else {
       port = new CdcPolyfill.SerialPort(device, {
         protocol: CdcPolyfill.SerialPolyfillProtocol.UsbCdcAcm,
         usbControlInterfaceClass: 2,
         usbTransferInterfaceClass: 10
       });
-      await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none" });
+      await openWithRetry(port, { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none" });
     }
     state.port = port;
     state.writer = port.writable.getWriter();
@@ -1266,6 +1301,7 @@ async function connect() {
     state.snapAt = null;
     state.snapKey = null;
     state.lastLink = null;
+    state.everConnected = true;
     setDlgStatus(t("connectedOk"));
     renderConnState();
     log("connected", "sys");
@@ -1535,11 +1571,14 @@ function renderAll() {
   const card = $("signalCard");
 
   // 三态：live 按等级着色 / stale 降饱和 / off 虚线灰框
-  card.className = "signal" + (g ? " g" + g : "") + (link === "stale" ? " stale" : "") + (link === "off" ? " offline" : "");
+  // 但要区分"从没连过"和"连上又掉了"——前者不该一上来就红字喊"设备已断开"
+  const neverLinked = link === "off" && !state.everConnected;
+  card.className = "signal" + (g ? " g" + g : "") + (link === "stale" ? " stale" : "") +
+    (link === "off" && !neverLinked ? " offline" : "");
 
   if (link === "off") {
     $("gradeNum").textContent = "–";
-    $("gradeLvl").textContent = t("offlineTitle");
+    $("gradeLvl").textContent = neverLinked ? t("noData") : t("offlineTitle");
   } else {
     $("gradeNum").textContent = g ? String(g) : "–";
     $("gradeLvl").textContent = g ? t("lvl" + g)
@@ -1552,7 +1591,7 @@ function renderAll() {
   const metaParts = [csqTxt, r.band ? "B" + r.band : "",
     t($("autoPoll").checked ? "autoRefreshing" : "autoPaused")];
   if (link === "off") {
-    $("simpleMeta").textContent = [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
+    $("simpleMeta").textContent = neverLinked ? "" : [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
   } else {
     $("simpleMeta").innerHTML = metaParts.filter(Boolean).join(" · ");
   }
