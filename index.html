@@ -181,7 +181,11 @@
 
 <details class="card">
   <summary data-i18n="logTitle">AT 日志</summary>
-  <div id="log" style="margin-top:10px"></div>
+  <div class="row" style="margin-top:10px">
+    <button id="btnCopyLog" class="ghost" style="font-size:.82rem;padding:5px 12px" data-i18n="copyLog">复制日志</button>
+    <button id="btnClearLog" class="ghost" style="font-size:.82rem;padding:5px 12px" data-i18n="clearLog">清空日志</button>
+  </div>
+  <div id="log" style="margin-top:8px"></div>
 </details>
 
 <footer>
@@ -869,7 +873,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.3.1-alpha";
+const APP_VERSION = "0.3.2-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -895,6 +899,10 @@ const I18N = {
   exportCsv: { zh: "导出 CSV", en: "Export CSV" },
   clear: { zh: "清空", en: "Clear" },
   logTitle: { zh: "AT 日志", en: "AT log" },
+  copyLog: { zh: "复制日志", en: "Copy log" },
+  copied: { zh: "已复制", en: "Copied" },
+  copyFail: { zh: "复制失败，请长按选择文本", en: "Copy failed; select the text manually" },
+  clearLog: { zh: "清空日志", en: "Clear log" },
   lvl1: { zh: "覆盖非常好", en: "Excellent coverage" },
   lvl2: { zh: "覆盖好", en: "Good coverage" },
   lvl3: { zh: "覆盖较好", en: "Fair coverage" },
@@ -1254,6 +1262,36 @@ function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/* ================= 日志复制 ================= */
+function flashBtn(id, text, restoreKey) {
+  const btn = $(id);
+  const original = t(restoreKey);
+  btn.textContent = text;
+  btn.disabled = true;
+  setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1600);
+}
+
+async function copyLog() {
+  const el = $("log");
+  const text = (el.innerText || el.textContent || "").trim();
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    flashBtn("btnCopyLog", t("copied"), "copyLog");
+  } catch (e) {
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      flashBtn("btnCopyLog", t("copyFail"), "copyLog");
+    } catch (e2) {
+      alert(t("copyFail"));
+    }
+  }
+}
+
 /* ================= 记录 ================= */
 function persistRecords() {
   localStorage.setItem("nbtest.records", JSON.stringify(state.records));
@@ -1294,6 +1332,8 @@ $("connMask").addEventListener("click", (e) => { if (e.target === $("connMask"))
 $("btnConnect").addEventListener("click", connect);
 $("btnDisconnect").addEventListener("click", disconnect);
 $("btnRefresh").addEventListener("click", refresh);
+$("btnCopyLog").addEventListener("click", copyLog);
+$("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
 $("btnExport").addEventListener("click", exportCsv);
 $("btnClear").addEventListener("click", () => {
