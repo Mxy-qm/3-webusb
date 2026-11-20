@@ -46,6 +46,9 @@
   .chip-conn.on { background: var(--g600); color: #fff; border-color: var(--g600); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--g500); }
   .chip-conn.on .dot { background: #eafff4; }
+  /* 未连接：灰化，避免被误读为"已连上" */
+  .chip-conn.off { border-color: var(--line); color: var(--muted); background: #fff; }
+  .chip-conn.off .dot { background: #b9c9c2; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
   .muted { color: var(--muted); font-size: .85rem; }
@@ -68,6 +71,13 @@
   .signal .lvl { font-size: 1.05rem; font-weight: 700; margin-top: 6px; }
   .signal .big { font-size: 1.9rem; font-weight: 700; margin-top: 12px; }
   .signal .unit { font-size: .85rem; color: var(--muted); font-weight: 400; }
+  /* 数据过期：链路还在但读数不更新 */
+  .signal.stale { filter: grayscale(.9); opacity: .7; }
+  /* 已断开：虚线灰框，明确区分"没数据"和"信号差" */
+  .signal.offline { border-style: dashed; border-color: var(--line); background: #f7f8f8; }
+  .signal.offline .num { color: #b9c9c2; }
+  .signal.offline .lvl { color: var(--red); }
+  .staleTag { color: var(--red); }
   .meta { margin-top: 8px; font-size: .82rem; color: var(--muted); }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
@@ -899,7 +909,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.6.0-alpha";
+const APP_VERSION = "0.7.0-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -933,13 +943,16 @@ const I18N = {
   copied: { zh: "已复制", zhHant: "已複製", en: "Copied" },
   copyFail: { zh: "复制失败，请长按选择文本", zhHant: "複製失敗，請長按選取文字", en: "Copy failed; select the text manually" },
   clearLog: { zh: "清空日志", zhHant: "清除日誌", en: "Clear log" },
-  lvl1: { zh: "好", zhHant: "好", en: "Good" },
-  lvl2: { zh: "可用", zhHant: "可用", en: "Usable" },
-  lvl3: { zh: "偏弱", zhHant: "偏弱", en: "Weak" },
+  lvl1: { zh: "优", zhHant: "優", en: "Excellent" },
+  lvl2: { zh: "良", zhHant: "良", en: "Good" },
+  lvl3: { zh: "一般", zhHant: "一般", en: "Fair" },
   lvl4: { zh: "差", zhHant: "差", en: "Poor" },
   eclNote: { zh: "ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。", zhHant: "ECL = 覆蓋增強等級：0 最好、1 中等、2 最差（數值越小訊號越強）。", en: "ECL = coverage enhancement level: 0 best, 1 medium, 2 worst (lower is stronger)." },
   noSignal: { zh: "无信号（CSQ 99）", zhHant: "無訊號（CSQ 99）", en: "No signal (CSQ 99)" },
   noReadingShort: { zh: "无有效读数", zhHant: "無數值", en: "No valid reading" },
+  staleData: { zh: "数据已过期", zhHant: "數據已過期", en: "Data stale" },
+  offlineTitle: { zh: "设备已断开", zhHant: "裝置已中斷", en: "Device disconnected" },
+  chipHint: { zh: "连接设备或查看连接状态", zhHant: "連線裝置或查看連線狀態", en: "Connect a device or view connection status" },
   updated: { zh: "更新于", zhHant: "更新於", en: "Updated" },
   colTime: { zh: "时间", zhHant: "時間", en: "Time" },
   colPoint: { zh: "点位", zhHant: "點位", en: "Site" },
@@ -981,12 +994,29 @@ function applyI18n() {
 
 /* ================= 状态 ================= */
 const $ = (id) => document.getElementById(id);
+
+// 链路健康阈值
+const HEARTBEAT_TIMEOUT_MS = 12000;  // 超过这么久没收到任何 AT 响应 → 判定断开
+const STALE_MS = 15000;              // 超过这么久没成功刷新 → 数据标为过期
+const WATCHDOG_INTERVAL_MS = 3000;   // 看门狗检查间隔
+
 const state = {
   port: null, writer: null, reader: null, connected: false,
   reading: null, view: "simple", pollTimer: null, pollActive: false,
   refreshing: false, discard: false, lineQ: [],
+  lastOkAt: null,      // 最后一次成功刷新的时间戳
+  lastLineAt: null,    // 最后一次收到任意 AT 响应行的时间戳
+  failCount: 0,        // 连续刷新失败次数
+  watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
+
+// 派生链路状态：off（断开）/ stale（数据过期）/ live（正常）
+function linkState() {
+  if (!state.connected) return "off";
+  if (!state.lastOkAt) return "stale";
+  return Date.now() - state.lastOkAt > STALE_MS ? "stale" : "live";
+}
 const NS_FIELD_RE = /^(Signal power|Total power|TX power|TX time|RX time|Cell ID|ECL|SNR|EARFCN|PCI|RSRQ|OPERATOR MODE|CURRENT BAND)\s*:/i;
 
 /* 丢弃输入缓冲里的残留行（上次会话/上一条命令的尾巴） */
@@ -1061,8 +1091,13 @@ function setDlgStatus(text, isErr) {
 
 function renderConnState() {
   const on = state.connected;
-  $("btnConnChip").classList.toggle("on", on);
-  $("connChipText").textContent = on ? t("connected") : t("connect");
+  const chip = $("btnConnChip");
+  chip.classList.toggle("on", on);
+  chip.classList.toggle("off", !on);
+  // 用状态词而非动作词：未连接就明确显示"未连接"，避免被误读成已连上
+  $("connChipText").textContent = on ? t("connected") : t("notConnected");
+  chip.title = t("chipHint");
+  chip.setAttribute("aria-label", t("chipHint"));
   $("btnDisconnect").disabled = !on;
   $("btnConnect").disabled = on;
 }
@@ -1106,6 +1141,9 @@ async function connect() {
     state.writer = port.writable.getWriter();
     pipeRead(port);
     state.connected = true;
+    state.lastOkAt = null;
+    state.lastLineAt = Date.now();
+    state.failCount = 0;
     setDlgStatus(t("connectedOk"));
     renderConnState();
     log("connected", "sys");
@@ -1138,6 +1176,7 @@ function pipeRead(port) {
               lineBuf = "";
               if (state.discard) continue;
               log("← " + line);
+              state.lastLineAt = Date.now();
               if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
               else { state.lineQ.push(line); if (state.lineQ.length > 200) state.lineQ.shift(); }
             }
@@ -1154,9 +1193,17 @@ function pipeRead(port) {
 function onDisconnected() {
   state.connected = false;
   state.port = state.writer = state.reader = null;
+  // 清空当前读数：宁可让用户看到"已断开"，也不能让静止的旧数字冒充实时值
+  state.reading = null;
+  state.lastOkAt = null;
+  state.lastLineAt = null;
+  state.failCount = 0;
+  stopPoll();
   renderConnState();
   setDlgStatus(t("disconnected"));
-  stopPoll();
+  renderAll();
+  if (navigator.vibrate) { try { navigator.vibrate([120, 80, 120]); } catch (e) {} }
+  log("link down", "sys");
 }
 
 async function disconnect() {
@@ -1176,10 +1223,33 @@ function schedulePoll() {
       if ($("autoPoll").checked) await refresh();
     }
   })();
+  startWatchdog();
 }
+
+// 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
+function startWatchdog() {
+  stopWatchdog();
+  state.watchdog = setInterval(() => {
+    if (!state.connected) return;
+    const now = Date.now();
+    if (state.lastLineAt && now - state.lastLineAt > HEARTBEAT_TIMEOUT_MS) {
+      log(`heartbeat timeout (${Math.round((now - state.lastLineAt) / 1000)}s)`, "sys");
+      onDisconnected();
+      return;
+    }
+    // 链路还在但读数不更新 → 标过期
+    if (linkState() === "stale") renderAll();
+  }, WATCHDOG_INTERVAL_MS);
+}
+
+function stopWatchdog() {
+  if (state.watchdog) { clearInterval(state.watchdog); state.watchdog = null; }
+}
+
 function stopPoll() {
   state.pollActive = false;
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  stopWatchdog();
 }
 
 /* ================= 读数 ================= */
@@ -1249,7 +1319,25 @@ async function refresh() {
   if (!state.connected || state.refreshing) return;
   state.refreshing = true;
   try {
-    let ns = null, csq = null;
+    // 整体超时：防止 transferIn 挂死导致轮询永久卡住
+    const ok = await Promise.race([doRefresh(), sleep(20000).then(() => "timeout")]);
+    if (ok === true) {
+      state.lastOkAt = Date.now();
+      state.failCount = 0;
+    } else {
+      state.failCount++;
+      log(`refresh failed (${state.failCount}/2)${ok === "timeout" ? " · timeout" : ""}`, "sys");
+      if (state.failCount >= 2) onDisconnected();
+      else renderAll(); // 先按"数据过期"处理
+    }
+  } finally {
+    state.refreshing = false;
+  }
+}
+
+async function doRefresh() {
+  let ns = null, csq = null;
+  try {
     for (let attempt = 0; attempt < 3; attempt++) {
       await drainInput(attempt === 0 ? 120 : 250);
       const csqLines = (await enqueue("AT+CSQ", 2500) || []).filter((l) => /^\+CSQ:/i.test(l));
@@ -1263,15 +1351,17 @@ async function refresh() {
       log(`nuestsats: ${nsLines.length} fields${complete ? "" : " (incomplete, retry)"}`, "sys");
       if (complete) { ns = parsed; break; }
     }
-    if (!ns) { log("NUESTATS incomplete after retries", "sys"); return; }
-    ns.csq = csq;
-    ns.grade = gradeOf(ns.rsrp, csq);
-    ns.at = new Date().toISOString();
-    state.reading = ns;
-    renderAll();
-  } finally {
-    state.refreshing = false;
+  } catch (e) {
+    log("refresh error: " + explainError(e), "sys");
+    return false;
   }
+  if (!ns) { log("NUESTATS incomplete after retries", "sys"); return false; }
+  ns.csq = csq;
+  ns.grade = gradeOf(ns.rsrp, csq);
+  ns.at = new Date().toISOString();
+  state.reading = ns;
+  renderAll();
+  return true;
 }
 
 /* ================= 渲染 ================= */
@@ -1283,16 +1373,31 @@ function fmt(v, digits) {
 function renderAll() {
   const r = state.reading || {};
   const g = r.grade || null;
+  const link = linkState();
   const card = $("signalCard");
-  card.className = "signal" + (g ? " g" + g : "");
-  $("gradeNum").textContent = g ? String(g) : "–";
-  $("gradeLvl").textContent = g ? t("lvl" + g)
-    : (state.connected && state.reading ? t("noReadingShort") : t("noData"));
+
+  // 三态：live 按等级着色 / stale 降饱和 / off 虚线灰框
+  card.className = "signal" + (g ? " g" + g : "") + (link === "stale" ? " stale" : "") + (link === "off" ? " offline" : "");
+
+  if (link === "off") {
+    $("gradeNum").textContent = "–";
+    $("gradeLvl").textContent = t("offlineTitle");
+  } else {
+    $("gradeNum").textContent = g ? String(g) : "–";
+    $("gradeLvl").textContent = g ? t("lvl" + g)
+      : (state.connected && state.reading ? t("noReadingShort") : t("noData"));
+  }
   $("rsrpVal").textContent = fmt(r.rsrp, 1);
 
   const csqTxt = r.csq === null || r.csq === undefined ? "" : (r.csq === 99 ? t("noSignal") : "CSQ " + r.csq);
-  $("simpleMeta").textContent = [csqTxt, r.band ? "B" + r.band : "", r.at ? t("updated") + " " + new Date(r.at).toTimeString().slice(0, 8) : ""]
-    .filter(Boolean).join(" · ");
+  const metaParts = [csqTxt, r.band ? "B" + r.band : "",
+    r.at ? t("updated") + " " + new Date(r.at).toTimeString().slice(0, 8) : ""];
+  if (link === "stale") metaParts.push(`<span class="staleTag">${t("staleData")}</span>`);
+  if (link === "off") {
+    $("simpleMeta").textContent = [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
+  } else {
+    $("simpleMeta").innerHTML = metaParts.filter(Boolean).join(" · ");
+  }
 
   $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
   $("mRsrq").textContent = fmt(r.rsrq, 1) + " dB";
