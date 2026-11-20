@@ -1,0 +1,19 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "signal-tester-web"
+main = "gate/worker.js"
+compatibility_date = "2026-11-20"
+
+# 静态资源（由 scripts/build-site.ps1 生成）
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# 所有请求先过 Worker，验证邀请码后才放行静态文件
+run_worker_first = true
+
+# 邀请码存储
+[[kv_namespaces]]
+binding = "INVITES"
+id = "请替换成你自己创建的 KV namespace id"
+
+# 密钥不写在文件里，用命令设置：
+#   wrangler secret put INVITE_SECRET

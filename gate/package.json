@@ -1,0 +1,5 @@
+{
+  "name": "signal-tester-gate",
+  "private": true,
+  "type": "module"
+}

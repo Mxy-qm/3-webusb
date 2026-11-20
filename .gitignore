@@ -1,0 +1,5 @@
+# 构建产物（由 scripts/build-site.mjs 生成）
+/public/
+# wrangler 本地状态
+.wrangler/
+node_modules/

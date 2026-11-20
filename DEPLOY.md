@@ -39,7 +39,72 @@
 
 ---
 
-## 交给公司运维/同事（自有域名、任意 Web 服务器）
+## 方案 B：邀请码网关（Cloudflare Worker + KV，推荐给客户用）
+
+> 不在公司核心域名部署时用这套：独立子域名 + 一客户一码，浏览器拿不到码表。
+
+### 目录结构
+```
+3-webusb/
+├─ index.html / go-no-go.html   页面源文件
+├─ gate/worker.js               邀请码网关（校验 + 下发 cookie + 透传静态资源）
+├─ gate/test-gate.mjs           逻辑自测（node gate/test-gate.mjs）
+├─ scripts/build-site.mjs       生成 public/（wrangler 上传目录）
+├─ scripts/new-invite.mjs       生成客户邀请码 + KV 写入命令
+├─ wrangler.toml                Workers 配置
+└─ public/                      构建产物（已 gitignore）
+```
+
+### 首次部署（约 15 分钟）
+```bash
+cd 3-webusb
+
+# 1) 建 KV namespace，记下返回的 id
+npx wrangler kv namespace create INVITES
+
+# 2) 把 id 填进 wrangler.toml 的 [[kv_namespaces]]
+
+# 3) 设置签名密钥（≥32 位随机串）
+npx wrangler secret put INVITE_SECRET
+
+# 4) 构建静态资源并部署
+node scripts/build-site.mjs
+npx wrangler deploy
+
+# 5) 绑定自有子域名（Cloudflare 控制台）：
+#    Workers & Pages → 该 Worker → Settings → Domains & Routes → Add custom domain
+```
+
+### 发邀请码给客户
+```bash
+node scripts/new-invite.mjs --note "客户A-英国-李工" --days 30 --max-devices 3
+# 输出邀请码（形如 3YPE-E5ZT-VW）和写入 KV 的命令，按提示执行即可
+# 加 --put 可直接写入
+```
+
+### 撤销 / 查看
+```bash
+npx wrangler kv key delete --binding=INVITES "code:3YPEE5ZTVW" --remote
+npx wrangler kv key list --binding=INVITES --remote
+npx wrangler kv key get --binding=INVITES "code:3YPEE5ZTVW" --remote   # 看 used[] 里谁用过
+```
+
+### 行为说明
+- 未带 cookie 访问任意路径 → 返回邀请码输入页（HTTP 401）
+- `POST /redeem` 校验：码存在、未过期、使用次数未达 `maxDevices`
+- 通过后下发 `HttpOnly; Secure; SameSite=Lax` 的签名 cookie，默认 30 天（受码有效期截断）
+- 已授权访问 → 透传 `index.html` / `go-no-go.html`，HTML 带 `Cache-Control: no-cache`
+- 同一 IP 10 分钟内最多 10 次尝试（KV 计数，防暴力猜码）
+- `/logout` 可清除 cookie
+
+### 安全边界（务必知悉）
+- Cookie 由 HMAC-SHA256 签名，**密钥只在 Worker 环境变量里**，浏览器无法伪造
+- 但页面本身仍是纯前端：拿到 cookie 的人可以另存 HTML；邀请码机制防的是"链接扩散"，不是"页面代码保密"
+- 邀请码可被转发使用 → 用 `maxDevices` 限制设备数，或缩短有效期
+
+---
+
+## 方案 A：公司自有域名 + 任意 Web 服务器（无邀请码）
 
 **只需要两个文件**（都是纯静态，无构建、无后端、无外部依赖）：
 
