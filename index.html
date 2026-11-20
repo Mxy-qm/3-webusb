@@ -227,6 +227,11 @@
 <section id="viewAdvanced" hidden>
   <div class="card">
     <h2 data-i18n="metrics">当前读数</h2>
+    <!-- 高级视图也要看得到数据年龄：排查时正需要知道这屏数据有多旧 -->
+    <div class="agebar" hidden>
+      <span class="adot"></span><span class="atxt"></span><span class="apill"></span>
+    </div>
+    <div class="atrack" hidden><i></i></div>
     <table>
       <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
       <tr><td>RSRQ</td><td class="v" id="mRsrq">--</td></tr>
@@ -963,7 +968,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.4-alpha";
+const APP_VERSION = "0.7.5-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -1127,22 +1132,31 @@ function ageState() {
   return age > AGE_FRESH_MS ? "wait" : "fresh";
 }
 
-// 数据年龄条：这是卡片上最该被看见的信息——它决定读数能不能信
+// 数据年龄条：这是界面上最该被看见的信息——它决定读数能不能信
+// 简单视图和高级视图各有一条，同一份数据一起刷新（按 class 找，不写死 id）
 function renderAge() {
-  const bar = $("ageBar"), track = $("ageTrack"), fill = $("ageFill");
-  if (!bar) return;
   const age = dataAgeMs();
   const show = state.connected && age !== null;
-  bar.hidden = !show;
-  track.hidden = !show;
+  const st = ageState();
+  const label = t("dataAge") + " " + ageText();
+  const pill = t(st === "old" ? "ageOld" : st === "wait" ? "ageWait" : "ageFresh");
+  const pct = show ? Math.min(100, (age / STALE_MS) * 100).toFixed(0) + "%" : "0%";
+
+  document.querySelectorAll(".agebar").forEach((bar) => {
+    bar.hidden = !show;
+    bar.className = "agebar " + st;
+    const txt = bar.querySelector(".atxt"), pl = bar.querySelector(".apill");
+    if (txt) txt.textContent = label;
+    if (pl) pl.textContent = pill;
+  });
+  document.querySelectorAll(".atrack").forEach((track) => {
+    track.hidden = !show;
+    track.className = "atrack " + st;
+    const fill = track.querySelector("i");
+    if (fill) fill.style.width = pct;
+  });
   if (!show) return;
 
-  const st = ageState();
-  bar.className = "agebar " + st;
-  track.className = "atrack " + st;
-  $("ageBig").textContent = t("dataAge") + " " + ageText();
-  $("agePill").textContent = t(st === "old" ? "ageOld" : st === "wait" ? "ageWait" : "ageFresh");
-  fill.style.width = Math.min(100, (age / STALE_MS) * 100).toFixed(0) + "%";
   // 卡片过期态跟着年龄条走，不然最多要比年龄条晚一个轮询周期（5s）才变灰
   $("signalCard").classList.toggle("stale", st === "old");
 }
