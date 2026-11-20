@@ -873,7 +873,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.3.3-alpha";
+const APP_VERSION = "0.3.6-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -970,7 +970,7 @@ const $ = (id) => document.getElementById(id);
 const state = {
   port: null, writer: null, reader: null, connected: false,
   reading: null, view: "simple", pollTimer: null, pollActive: false,
-  refreshing: false, discard: false,
+  refreshing: false, discard: false, lineQ: [],
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
 const NS_FIELD_RE = /^(Signal power|Total power|TX power|TX time|RX time|Cell ID|ECL|SNR|EARFCN|PCI|RSRQ|OPERATOR MODE|CURRENT BAND)\s*:/i;
@@ -1004,6 +1004,7 @@ function enqueue(text, timeoutMs) {
 }
 async function runCmd(text, timeoutMs) {
   if (!state.port || !state.writer) return null;
+  state.lineQ.length = 0; // 丢弃该命令之前的残留行
   log("→ " + text, "tx");
   await state.writer.write(new TextEncoder().encode(text + "\r\n"));
   const lines = [];
@@ -1011,10 +1012,15 @@ async function runCmd(text, timeoutMs) {
   for (;;) {
     const left = deadline - Date.now();
     if (left <= 0) break;
-    const line = await new Promise((res) => {
-      lineWaiter = res;
-      setTimeout(() => { if (lineWaiter === res) { lineWaiter = null; res(null); } }, left);
-    });
+    let line;
+    if (state.lineQ.length) {
+      line = state.lineQ.shift();
+    } else {
+      line = await new Promise((res) => {
+        lineWaiter = res;
+        setTimeout(() => { if (lineWaiter === res) { lineWaiter = null; res(null); } }, left);
+      });
+    }
     if (line === null) break;
     lines.push(line);
     if (/^(OK|ERROR|\+CME ERROR)/i.test(line)) break;
@@ -1049,10 +1055,20 @@ function renderConnState() {
 
 async function connect() {
   try {
-    if (!window.isSecureContext) throw new Error(t("notSecure"));
+    const httpsOk = location.protocol === "https:" || location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1" || window.isSecureContext === true;
+    if (!httpsOk) throw new Error(t("notSecure"));
     if (!navigator.usb) throw new Error("WebUSB unavailable");
+    if (!window.isSecureContext) log("warn: isSecureContext=false but protocol=" + location.protocol, "sys");
     setDlgStatus(t("connectDevice") + "…");
-    const device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x1a86 }] });
+    let device;
+    try {
+      device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x1a86 }] });
+    } catch (e1) {
+      log("requestDevice failed: " + (e1 && e1.name) + " / " + (e1 && e1.message), "sys");
+      if (e1 && e1.stack) log(e1.stack.split("\n").slice(0, 6).join(" | "), "sys");
+      throw e1;
+    }
     const hex = (n) => "0x" + (n || 0).toString(16).padStart(4, "0");
     const devInfo = `${device.productName || "—"} · VID ${hex(device.vendorId)} PID ${hex(device.productId)}` +
       (device.serialNumber ? ` · SN ${device.serialNumber}` : "");
@@ -1087,7 +1103,8 @@ async function connect() {
     state.connected = false;
     renderConnState();
     setDlgStatus(t("connectFail") + ": " + explainError(e), true);
-    log(explainError(e), "sys");
+    log("connect error: " + (e && e.name) + " / " + (e && e.message), "sys");
+    if (e && e.stack) log(e.stack.split("\n").slice(0, 8).join(" | "), "sys");
   }
 }
 
@@ -1108,6 +1125,7 @@ function pipeRead(port) {
               if (state.discard) continue;
               log("← " + line);
               if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
+              else { state.lineQ.push(line); if (state.lineQ.length > 200) state.lineQ.shift(); }
             }
           } else lineBuf += ch;
         }
@@ -1147,7 +1165,7 @@ function schedulePoll() {
 }
 function stopPoll() {
   state.pollActive = false;
-  stopPoll();
+  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
 }
 
 /* ================= 读数 ================= */
