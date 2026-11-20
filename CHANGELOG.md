@@ -4,6 +4,18 @@
 
 ---
 
+## v0.3.3-alpha · 2026-11-20
+
+**修复读数串台导致大量字段显示 `--`**
+
+现场日志暴露问题：`AT+CSQ` 的响应里混进了上一条 `AT+NUESTATS` 的尾巴，导致解析到残缺数据——RSRP/CSQ/PCI 有值，RSRQ/RSSI/SNR/ECL/EARFCN/Band/Cell ID 全空。
+
+修复：
+- 每条命令前**排空输入缓冲**（`drainInput`，丢弃上次会话/上条命令残留行）
+- 响应**按命令类型过滤**：CSQ 只认 `+CSQ:`，NUESTATS 只认字段行
+- NUESTATS **完整性校验 + 最多 3 次重试**（要求含 Signal power / EARFCN / CURRENT BAND / ECL）
+- 轮询由 `setInterval` 改为**串行循环**（刷新跑完再等 5 秒），并加 `refreshing` 互斥，杜绝重叠导致的命令交错
+
 ## v0.3.2-alpha · 2026-11-20
 
 - AT 日志加「复制日志 / Copy log」与「清空日志 / Clear log」按钮；复制成功后按钮短暂显示「已复制」，失败时自动全选日志文本提示手动复制

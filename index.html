@@ -873,7 +873,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.3.2-alpha";
+const APP_VERSION = "0.3.3-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -969,9 +969,19 @@ function applyI18n() {
 const $ = (id) => document.getElementById(id);
 const state = {
   port: null, writer: null, reader: null, connected: false,
-  reading: null, view: "simple", pollTimer: null,
+  reading: null, view: "simple", pollTimer: null, pollActive: false,
+  refreshing: false, discard: false,
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
+const NS_FIELD_RE = /^(Signal power|Total power|TX power|TX time|RX time|Cell ID|ECL|SNR|EARFCN|PCI|RSRQ|OPERATOR MODE|CURRENT BAND)\s*:/i;
+
+/* 丢弃输入缓冲里的残留行（上次会话/上一条命令的尾巴） */
+async function drainInput(ms) {
+  if (!state.connected) return;
+  state.discard = true;
+  await sleep(ms);
+  state.discard = false;
+}
 let lineBuf = "";
 let lineWaiter = null;
 
@@ -1070,6 +1080,7 @@ async function connect() {
     renderConnState();
     log("connected", "sys");
     schedulePoll();
+    await drainInput(250);
     await refresh();
     setTimeout(closeModal, 600);
   } catch (e) {
@@ -1094,6 +1105,7 @@ function pipeRead(port) {
             if (lineBuf) {
               const line = lineBuf;
               lineBuf = "";
+              if (state.discard) continue;
               log("← " + line);
               if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
             }
@@ -1112,7 +1124,7 @@ function onDisconnected() {
   state.port = state.writer = state.reader = null;
   renderConnState();
   setDlgStatus(t("disconnected"));
-  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  stopPoll();
 }
 
 async function disconnect() {
@@ -1123,8 +1135,19 @@ async function disconnect() {
 }
 
 function schedulePoll() {
-  if (state.pollTimer) clearInterval(state.pollTimer);
-  state.pollTimer = setInterval(() => { if ($("autoPoll").checked && state.connected) refresh(); }, 5000);
+  stopPoll();
+  state.pollActive = true;
+  (async function loop() {
+    while (state.pollActive && state.connected) {
+      await sleep(5000);
+      if (!state.pollActive || !state.connected) break;
+      if ($("autoPoll").checked) await refresh();
+    }
+  })();
+}
+function stopPoll() {
+  state.pollActive = false;
+  stopPoll();
 }
 
 /* ================= 读数 ================= */
@@ -1156,17 +1179,32 @@ function gradeOf(rsrp) {
 }
 
 async function refresh() {
-  if (!state.connected) return;
-  const csqLines = await enqueue("AT+CSQ", 2500);
-  const nsLines = await enqueue("AT+NUESTATS", 5000);
-  if (!csqLines || !nsLines) return;
-  const csqMatch = csqLines.map((l) => /\+CSQ:\s*(\d+)/.exec(l)).find(Boolean);
-  const ns = parseNuestats(nsLines);
-  ns.csq = csqMatch ? +csqMatch[1] : null;
-  ns.grade = gradeOf(ns.rsrp);
-  ns.at = new Date().toISOString();
-  state.reading = ns;
-  renderAll();
+  if (!state.connected || state.refreshing) return;
+  state.refreshing = true;
+  try {
+    let ns = null, csq = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await drainInput(attempt === 0 ? 120 : 250);
+      const csqLines = (await enqueue("AT+CSQ", 2500) || []).filter((l) => /^\+CSQ:/i.test(l));
+      const m = csqLines.map((l) => /\+CSQ:\s*(\d+)/.exec(l)).find(Boolean);
+      if (m) csq = +m[1];
+
+      const nsLines = (await enqueue("AT+NUESTATS", 6000) || []).filter((l) => NS_FIELD_RE.test(l));
+      const parsed = parseNuestats(nsLines);
+      const complete = parsed.rsrp !== undefined && parsed.earfcn !== undefined &&
+        parsed.band !== undefined && parsed.ecl !== undefined;
+      log(`nuestsats: ${nsLines.length} fields${complete ? "" : " (incomplete, retry)"}`, "sys");
+      if (complete) { ns = parsed; break; }
+    }
+    if (!ns) { log("NUESTATS incomplete after retries", "sys"); return; }
+    ns.csq = csq;
+    ns.grade = gradeOf(ns.rsrp);
+    ns.at = new Date().toISOString();
+    state.reading = ns;
+    renderAll();
+  } finally {
+    state.refreshing = false;
+  }
 }
 
 /* ================= 渲染 ================= */
