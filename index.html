@@ -869,7 +869,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.3.0-alpha";
+const APP_VERSION = "0.3.1-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -933,7 +933,7 @@ const I18N = {
   noReading: { zh: "还没有读数，先点「刷新一次」", en: "No reading yet; press Refresh" },
   connectFail: { zh: "连接失败", en: "Connection failed" },
   connectedOk: { zh: "已连接，开始读数", en: "Connected; reading" },
-  busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次", en: "Interface busy: fully close the vendor App, then replug" },
+  busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次；若选择框里有两个同名设备，换另一个再试", en: "Interface busy: fully close the vendor App and replug; if two identical devices are listed, try the other one" },
   cancelled: { zh: "未选择设备", en: "No device selected" },
   notSecure: { zh: "页面必须在 HTTPS 下打开", en: "Page must be served over HTTPS" },
   disconnected: { zh: "已断开", en: "Disconnected" },
@@ -1035,6 +1035,11 @@ async function connect() {
     if (!navigator.usb) throw new Error("WebUSB unavailable");
     setDlgStatus(t("connectDevice") + "…");
     const device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x1a86 }] });
+    const hex = (n) => "0x" + (n || 0).toString(16).padStart(4, "0");
+    const devInfo = `${device.productName || "—"} · VID ${hex(device.vendorId)} PID ${hex(device.productId)}` +
+      (device.serialNumber ? ` · SN ${device.serialNumber}` : "");
+    log("picked: " + devInfo, "sys");
+    setDlgStatus(t("connectDevice") + "… " + devInfo);
     let port;
     const hasVendor = (device.configurations[0] || { interfaces: [] }).interfaces
       .some((i) => i.alternates.some((a) => a.interfaceClass === 0xff));
