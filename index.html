@@ -90,6 +90,24 @@
 
   footer { text-align: center; font-size: .76rem; color: var(--muted); margin-top: 18px; }
   footer a { color: var(--g700); }
+
+  /* 点位记录 */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .chip { border: 1px solid var(--line); background: #fff; color: var(--g700); border-radius: 999px;
+          padding: 7px 13px; font-size: .85rem; cursor: pointer; line-height: 1.2; }
+  .chip.active { background: var(--g600); color: #fff; border-color: var(--g600); }
+  .rec { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
+  .rec:last-child { border-bottom: none; }
+  .rec .lbl { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rec .time { color: var(--muted); font-size: .78rem; }
+  .rec .val { font-family: ui-monospace, Consolas, monospace; color: var(--g900); }
+  .dotg { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .dotg.g1, .dotg.g2 { background: var(--g600); }
+  .dotg.g3, .dotg.g4 { background: var(--amber); }
+  .dotg.g5, .dotg.g6 { background: var(--red); }
+  .empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 14px 6px; border: 1px dashed var(--line); border-radius: 12px; }
+  .cmp-line { padding: 5px 0; font-size: .9rem; }
+  .cmp-verdict { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--g50); border: 1px solid var(--line); font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -159,20 +177,20 @@
 </section>
 
 <section class="card">
-  <h2 data-i18n="records">点位记录</h2>
-  <div class="row" style="margin-bottom:10px">
-    <input type="text" id="pointLabel" list="pointList" placeholder="点位标签，如 A1 原位" data-i18n-placeholder="pointPlaceholder">
-    <datalist id="pointList">
-      <option value="A1 原位"></option>
-      <option value="A2 换朝向"></option>
-      <option value="A3 抬高1m"></option>
-      <option value="B1 邻树"></option>
-      <option value="OPEN 开阔参照"></option>
-    </datalist>
+  <h2 data-i18n="recordsTitle">现场点位记录</h2>
+  <div class="muted" data-i18n="recordsHelp">每测一个位置就存一条。换位置再存一条，存满两条就能自动对比。</div>
+
+  <div class="chips" id="pointChips"></div>
+
+  <div class="row" style="margin:10px 0">
+    <input type="text" id="pointLabel" placeholder="或自己输入点位名" data-i18n-placeholder="pointPlaceholder">
     <button id="btnSave" data-i18n="save">保存当前读数</button>
   </div>
+  <div class="muted" id="saveHint" style="margin-bottom:8px"></div>
+
   <div id="recordsWrap"></div>
-  <div class="row" style="margin-top:10px">
+
+  <div class="row" style="margin-top:12px">
     <button id="btnExport" class="ghost" data-i18n="exportCsv">导出 CSV</button>
     <button id="btnClear" class="ghost" data-i18n="clear">清空</button>
   </div>
@@ -873,7 +891,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.3.6-alpha";
+const APP_VERSION = "0.4.0-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -893,9 +911,19 @@ const I18N = {
   metrics: { zh: "当前读数", en: "Current readings" },
   refresh: { zh: "刷新一次", en: "Refresh" },
   autoPoll: { zh: "自动刷新（5 秒）", en: "Auto refresh (5 s)" },
-  records: { zh: "点位记录", en: "Site records" },
-  pointPlaceholder: { zh: "点位标签，如 A1 原位", en: "Site label, e.g. A1 original" },
-  save: { zh: "保存当前读数", en: "Save current reading" },
+  recordsTitle: { zh: "现场点位记录", en: "Site records" },
+  recordsHelp: { zh: "每测一个位置存一条；换位置再存一条，存满两条就能自动对比。", en: "Save one record per location. Move, save again — with two records you get an automatic comparison." },
+  pointPlaceholder: { zh: "或自己输入点位名", en: "or type a name" },
+  save: { zh: "保存当前读数", en: "Save reading" },
+  saveHintReady: { zh: "读数已就绪：选一个点位名，然后点保存。", en: "Reading ready — pick a site name, then save." },
+  saveHintNoConn: { zh: "还没有读数：先点右上角 Connect 连接设备。", en: "No reading yet — tap Connect at the top right first." },
+  emptyHint: { zh: "还没有记录。连接设备 → 选点位名 → 点「保存当前读数」。", en: "No records yet. Connect → pick a site name → tap Save reading." },
+  cmpTitle: { zh: "两点位对比", en: "Compare two sites" },
+  cmpPick: { zh: "选择要对比的两个点位", en: "Choose two sites" },
+  cmpHigher: { zh: "高", en: "higher by" },
+  cmpLower: { zh: "低", en: "lower by" },
+  cmpVerdictStrong: { zh: "差异明显：换位置确实有效，可作为排查依据。", en: "Clear difference — relocating really helps; usable as evidence." },
+  cmpVerdictWeak: { zh: "差异不大：位置影响有限，判据一/二都不成立。", en: "Small difference — location matters little; rules 1 and 2 are not triggered." },
   exportCsv: { zh: "导出 CSV", en: "Export CSV" },
   clear: { zh: "清空", en: "Clear" },
   logTitle: { zh: "AT 日志", en: "AT log" },
@@ -930,8 +958,8 @@ const I18N = {
   compare: { zh: "两点位对比", en: "Compare two sites" },
   rsrpDiff: { zh: "RSRP 差", en: "RSRP diff" },
   csqGain: { zh: "CSQ 改善", en: "CSQ gain" },
-  pciSame: { zh: "PCI 相同（同一小区）", en: "same PCI (same cell)" },
-  pciDiff: { zh: "PCI 不同（不同小区）", en: "different PCI (different cell)" },
+  pciSame: { zh: "同一小区", en: "same cell" },
+  pciDiff: { zh: "不同小区", en: "different cell" },
   judgeRsrp: { zh: "判据一（RSRP 差 > 6 dB）", en: "Rule 1 (RSRP diff > 6 dB)" },
   judgeCsq: { zh: "判据二（CSQ 改善 ≥ 3）", en: "Rule 2 (CSQ gain ≥ 3)" },
   pass: { zh: "成立", en: "triggered" },
@@ -963,6 +991,7 @@ function applyI18n() {
   $("langSel").value = lang;
   renderConnState();
   renderAll();
+  renderChips();
 }
 
 /* ================= 状态 ================= */
@@ -1255,28 +1284,60 @@ function renderAll() {
   $("mBand").textContent = r.band ? "B" + r.band : "--";
   $("mCell").textContent = fmt(r.cellId);
 
+  updateSaveState();
   renderRecords();
+}
+
+const PRESETS = [
+  { id: "a1", zh: "A1 原位", en: "A1 original" },
+  { id: "a2", zh: "A2 换朝向", en: "A2 reorient" },
+  { id: "a3", zh: "A3 抬高1m", en: "A3 raise 1m" },
+  { id: "b1", zh: "B1 邻树", en: "B1 neighbour" },
+  { id: "open", zh: "开阔参照", en: "Open ref" }
+];
+
+function presetLabel(p) { return lang === "zh" ? p.zh : p.en; }
+
+function renderChips() {
+  const box = $("pointChips");
+  box.innerHTML = PRESETS.map((p) => `<button class="chip" data-chip="${p.id}">${presetLabel(p)}</button>`).join("");
+  box.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => {
+    const p = PRESETS.find((x) => x.id === b.dataset.chip);
+    $("pointLabel").value = presetLabel(p);
+    syncChipActive();
+  }));
+  syncChipActive();
+}
+
+function syncChipActive() {
+  const cur = $("pointLabel").value.trim();
+  document.querySelectorAll("#pointChips .chip").forEach((b) => {
+    const p = PRESETS.find((x) => x.id === b.dataset.chip);
+    b.classList.toggle("active", !!p && presetLabel(p) === cur);
+  });
+}
+
+function updateSaveState() {
+  const ready = !!state.reading;
+  $("btnSave").disabled = !ready;
+  $("saveHint").textContent = ready ? t("saveHintReady") : t("saveHintNoConn");
 }
 
 function renderRecords() {
   const wrap = $("recordsWrap");
-  const recs = state.records;
-  if (!recs.length) {
-    wrap.innerHTML = `<div class="muted">${t("noRecords")}</div>`;
+  if (!state.records.length) {
+    wrap.innerHTML = `<div class="empty">${t("emptyHint")}</div>`;
     $("compareWrap").innerHTML = "";
     return;
   }
-  let html = "<table><tr><th>" + t("colTime") + "</th><th>" + t("colPoint") + "</th><th>" + t("colRsrp") +
-    "</th><th>" + t("colGrade") + "</th><th>" + t("colCsq") + "</th><th>" + t("colEcl") + "</th><th>" +
-    t("colPci") + "</th><th>" + t("colBand") + "</th><th></th></tr>";
-  recs.forEach((x) => {
-    html += `<tr><td>${new Date(x.at).toLocaleTimeString()}</td><td>${escapeHtml(x.label)}</td>` +
-      `<td class="v">${fmt(x.rsrp, 1)}</td><td>${x.grade ?? "--"}</td><td class="v">${fmt(x.csq)}</td>` +
-      `<td class="v">${fmt(x.ecl)}</td><td class="v">${fmt(x.pci)}</td><td class="v">${x.band ? "B" + x.band : "--"}</td>` +
-      `<td><button class="ghost" style="padding:2px 8px;font-size:.76rem" data-del="${x.id}">${t("del")}</button></td></tr>`;
-  });
-  html += "</table>";
-  wrap.innerHTML = html;
+  wrap.innerHTML = state.records.map((x) => `
+    <div class="rec">
+      <span class="dotg g${x.grade ?? 0}"></span>
+      <span class="lbl">${escapeHtml(x.label)}<div class="time">${new Date(x.at).toLocaleTimeString()} · ECL ${fmt(x.ecl)} · PCI ${fmt(x.pci)}</div></span>
+      <span class="val">${fmt(x.rsrp, 1)} dBm</span>
+      <span class="val">CSQ ${fmt(x.csq)}</span>
+      <button class="ghost" style="padding:2px 8px;font-size:.75rem" data-del="${x.id}">${t("del")}</button>
+    </div>`).join("");
   wrap.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
     state.records = state.records.filter((x) => String(x.id) !== b.dataset.del);
     persistRecords();
@@ -1288,26 +1349,27 @@ function renderRecords() {
 function renderCompare() {
   const box = $("compareWrap");
   if (state.records.length < 2) { box.innerHTML = ""; return; }
-  const opts = state.records.map((x) => `<option value="${x.id}">${escapeHtml(x.label)} (${fmt(x.rsrp, 1)} dBm)</option>`).join("");
-  box.innerHTML = `<h2>${t("compare")}</h2><div class="row">` +
-    `<select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div><div id="cmpOut" style="margin-top:10px"></div>`;
+  const opts = state.records.map((x) => `<option value="${x.id}">${escapeHtml(x.label)}</option>`).join("");
+  box.innerHTML = `<h2>${t("cmpTitle")}</h2><div class="muted" style="margin-bottom:6px">${t("cmpPick")}</div>` +
+    `<div class="row"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div>` +
+    `<div id="cmpOut" style="margin-top:10px"></div>`;
   $("cmpA").value = state.records[0].id;
   $("cmpB").value = state.records[state.records.length - 1].id;
   const run = () => {
     const a = state.records.find((x) => String(x.id) === $("cmpA").value);
     const b = state.records.find((x) => String(x.id) === $("cmpB").value);
     if (!a || !b) return;
-    const dRsrp = Math.abs((b.rsrp ?? 0) - (a.rsrp ?? 0));
+    const dRsrp = (b.rsrp ?? 0) - (a.rsrp ?? 0);
     const dCsq = (b.csq ?? 0) - (a.csq ?? 0);
     const samePci = a.pci === b.pci;
-    const j1 = dRsrp > 6, j2 = dCsq >= 3;
-    const cls = (ok) => ok ? "ok" : "bad";
+    const strong = Math.abs(dRsrp) > 6 || dCsq >= 3;
     $("cmpOut").innerHTML =
-      `<div>${t("rsrpDiff")}: <b>${dRsrp.toFixed(1)} dB</b></div>` +
-      `<div>${t("csqGain")}: <b>${dCsq}</b></div>` +
-      `<div>${samePci ? t("pciSame") : t("pciDiff")}</div>` +
-      `<div style="margin-top:8px">${t("judgeRsrp")}: <span class="${cls(j1)}" style="color:${j1 ? "var(--g700)" : "var(--red)"}">${j1 ? t("pass") : t("fail")}</span></div>` +
-      `<div>${t("judgeCsq")}: <span class="${cls(j2)}" style="color:${j2 ? "var(--g700)" : "var(--red)"}">${j2 ? t("pass") : t("fail")}</span></div>`;
+      `<div class="cmp-line">RSRP: <b>${escapeHtml(b.label)}</b> ${dRsrp >= 0 ? t("cmpHigher") : t("cmpLower")} ` +
+        `<b>${Math.abs(dRsrp).toFixed(1)} dB</b>（${fmt(a.rsrp, 1)} → ${fmt(b.rsrp, 1)}）</div>` +
+      `<div class="cmp-line">CSQ: ${dCsq >= 0 ? t("cmpHigher") : t("cmpLower")} <b>${Math.abs(dCsq)}</b>` +
+        `（${fmt(a.csq)} → ${fmt(b.csq)}）</div>` +
+      `<div class="cmp-line">PCI: ${samePci ? t("pciSame") : t("pciDiff")}（${fmt(a.pci)} / ${fmt(b.pci)}）</div>` +
+      `<div class="cmp-verdict">${strong ? t("cmpVerdictStrong") : t("cmpVerdictWeak")}</div>`;
   };
   $("cmpA").addEventListener("change", run);
   $("cmpB").addEventListener("change", run);
@@ -1391,6 +1453,7 @@ $("btnRefresh").addEventListener("click", refresh);
 $("btnCopyLog").addEventListener("click", copyLog);
 $("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
+$("pointLabel").addEventListener("input", syncChipActive);
 $("btnExport").addEventListener("click", exportCsv);
 $("btnClear").addEventListener("click", () => {
   if (!state.records.length) return;
