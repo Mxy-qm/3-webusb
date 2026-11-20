@@ -126,6 +126,11 @@
   <div id="log" style="margin-top:8px"></div>
 </details>
 
+<footer class="muted" style="margin-top:16px;font-size:.78rem;text-align:center">
+  <div id="verLine"></div>
+  <div data-i18n="alphaNote">Alpha 版本：功能与文案可能变动，现场使用请核对读数。</div>
+</footer>
+
 <script>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const WCH_VID = 0x1a86;
@@ -861,6 +866,7 @@ const I18N = {
   pass: { zh: "成立", en: "triggered" },
   fail: { zh: "不成立", en: "not triggered" },
   cleared: { zh: "已清空记录", en: "Records cleared" },
+  alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", en: "Alpha build: features and wording may change; verify readings in the field." },
   saved: { zh: "已保存", en: "Saved" },
   needLabel: { zh: "请先填点位标签", en: "Enter a site label first" },
   noReading: { zh: "还没有读数，先点“刷新一次”", en: "No reading yet; press Refresh" },
@@ -886,6 +892,10 @@ function applyI18n() {
   document.getElementById("langBtn").textContent = lang === "zh" ? "EN" : "中文";
   renderAll();
 }
+
+/* ================= 版本 ================= */
+const APP_VERSION = "0.1.0-alpha";
+const APP_BUILD = "2026-11-20";
 
 /* ================= 状态 ================= */
 const $ = (id) => document.getElementById(id);
@@ -1222,6 +1232,7 @@ function switchView(v) {
 }
 
 applyI18n();
+$("verLine").textContent = `v${APP_VERSION} · build ${APP_BUILD}`;
 log("ready", "sys");
 </script>
 </body>
