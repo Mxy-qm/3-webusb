@@ -17,6 +17,9 @@
 - 中英双语切换（右上角，选择本地持久化）
 - 连接层：自动识别 CH340（vendor class 0xFF）走 esptool-js 驱动，否则走 CDC-ACM 兜底
 - 页脚显示版本号与 Alpha 提示
+- 页脚加「诊断工具（排障用）」入口 → `go-no-go.html`
+
+**URL 变更提醒（2026-11-20）**：`index.html` 原为「自动跳转到 go-no-go.html」的占位页，已替换为产品页。旧跳转页被浏览器缓存后会把访问者直接带去 `go-no-go.html`，且刷新无效——遇到时用带参数的地址（`.../3-webusb/?v=2`）或无痕窗口打开。**根地址即产品页**。
 
 已知限制：
 - 仅测 NB-IoT 主小区读数；邻区明细需用 `go-no-go.html` 的 `AT+NUESTATS=CELL`
