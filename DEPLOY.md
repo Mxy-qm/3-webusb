@@ -39,6 +39,48 @@
 
 ---
 
+## 交给公司运维/同事（自有域名、任意 Web 服务器）
+
+**只需要两个文件**（都是纯静态，无构建、无后端、无外部依赖）：
+
+| 文件 | 作用 | 必须? |
+|---|---|---|
+| `index.html` | 产品页（全部 JS 已内联，含 CH340 驱动） | 必须 |
+| `go-no-go.html` | 排障工具页（产品页页脚链接指向它） | 建议一起放，否则页脚链接 404 |
+
+### 硬性要求（缺一不可）
+1. **必须 HTTPS**。WebUSB 只在安全上下文可用；纯 HTTP（含内网 http://IP）会被页面拒绝，提示"页面必须在 HTTPS 下打开"
+2. 以 `text/html; charset=utf-8` 提供（服务器默认即可）
+3. **HTML 不要长缓存**，否则用户看到旧版；建议 `Cache-Control: no-cache`
+4. 放任意路径都行，如 `https://your-domain.com/signal/` → 该目录下放 `index.html`
+
+### Nginx 参考配置
+```nginx
+location /signal/ {
+    alias /var/www/signal/;
+    index index.html;
+    add_header Cache-Control "no-cache, must-revalidate" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+}
+```
+
+### Apache 参考（.htaccess 放同目录）
+```apache
+<FilesMatch "\.html$">
+  Header set Cache-Control "no-cache, must-revalidate"
+</FilesMatch>
+Header set X-Content-Type-Options "nosniff"
+```
+
+### 不需要的东西
+不必配 Node/PHP/数据库，不必装依赖，不必开 CORS（页面不跨域取数），不必上传字体或图片（无外部资源）。
+
+### 部署后请对方确认
+打开 `https://<域名>/<路径>/`，看到浅绿界面、右上角 `Connect` 与 `English` 下拉、页脚 `v0.5.1-alpha` 即成功。
+
+---
+
 ## 发布流程
 
 ```powershell
