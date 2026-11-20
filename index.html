@@ -18,10 +18,35 @@
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
     background: var(--bg); color: var(--text); line-height: 1.5; font-size: 15px;
   }
-  header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-  h1 { font-size: 1.1rem; margin: 0; flex: 1; color: var(--g900); letter-spacing: .2px; }
+  /* 顶栏：品牌（标志 + 可选字标 + 标题）在左，语言/连接在右。
+     flex-wrap 是安全网——真挤不下时右侧控件整体换到第二行，绝不压扁。 */
+  header { display: flex; align-items: center; gap: 10px; row-gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 8px; flex: 1 1 150px; min-width: 0; }
+  .brand .bwide { height: 26px; width: auto; flex: none; display: block; }
+  .brand .bnarrow { height: 32px; width: auto; flex: none; display: none; }
+  h1 {
+    font-size: 1.02rem; margin: 0; flex: 1; min-width: 0; color: var(--g900); letter-spacing: .2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   h2 { font-size: .95rem; margin: 0 0 10px; color: var(--g900); }
-  .hdr-actions { display: flex; align-items: center; gap: 8px; }
+  .hdr-actions { display: flex; align-items: center; gap: 8px; flex: none; margin-left: auto; }
+  /* 宽屏：字标与产品名之间加一道细分隔线，读起来是「LEAFIoT │ NB-IoT 信号测试」，不是一串字 */
+  @media (min-width: 461px) {
+    .brand h1 { border-left: 1px solid var(--line); padding-left: 9px; margin-left: 1px; }
+  }
+  /* 窄屏（<460px）三件事，只为「单行放得下」：
+     ① 横向组合 logo 要 112px，换方形标志只要 32px；
+     ② 连接键只留状态圆点（文字交给弹窗和 aria-label），省下约 80px；
+     ③ 标题字号略缩。实测只有这个组合能让英文长标题完整显示且不换行。 */
+  @media (max-width: 460px) {
+    .brand .bwide { display: none; }
+    .brand .bnarrow { display: block; }
+    #connChipText { display: none; }
+    #btnConnChip { padding: 9px 12px; }
+    #btnConnChip .dot { width: 10px; height: 10px; }
+    h1 { font-size: .98rem; }
+  }
+  @media (max-width: 380px) { header { gap: 8px; } .brand .bnarrow { height: 27px; } h1 { font-size: .92rem; } }
 
   select, input[type=text] {
     font: inherit; color: var(--text); background: #fff;
@@ -146,7 +171,11 @@
 </head>
 <body>
 <header>
-  <h1 data-i18n="title">NB-IoT 信号测试</h1>
+  <div class="brand">
+    <img class="bwide" src="data:image/png;base64,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" alt="LeafIoT" width="336" height="78">
+    <img class="bnarrow" src="data:image/png;base64,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" alt="LeafIoT" width="96" height="96">
+    <h1 data-i18n="title">NB-IoT 信号测试</h1>
+  </div>
   <div class="hdr-actions">
     <select id="langSel" aria-label="Language">
       <option value="en">English</option>
@@ -173,8 +202,8 @@
 </div>
 
 <nav>
-  <button id="tabSimple" class="active" data-i18n="tabSimple">客户视图</button>
-  <button id="tabAdvanced" data-i18n="tabAdvanced">高级数据</button>
+  <button id="tabSimple" class="active" data-i18n="tabSimple">简单</button>
+  <button id="tabAdvanced" data-i18n="tabAdvanced">高级</button>
 </nav>
 
 <section id="viewSimple">
@@ -930,7 +959,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.2-alpha";
+const APP_VERSION = "0.7.3-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -944,8 +973,8 @@ const I18N = {
   connected: { zh: "已连接", zhHant: "已連線", en: "Connected" },
   notConnected: { zh: "未连接", zhHant: "未連線", en: "Not connected" },
   connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", zhHant: "需要 HTTPS 頁面、測試棒已插好、厚德 App 已完全關閉。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
-  tabSimple: { zh: "客户视图", zhHant: "客戶檢視", en: "Simple" },
-  tabAdvanced: { zh: "高级数据", zhHant: "進階數據", en: "Advanced" },
+  tabSimple: { zh: "简单", zhHant: "簡單", en: "Simple" },
+  tabAdvanced: { zh: "高级", zhHant: "高級", en: "Advanced" },
   noData: { zh: "等待连接", zhHant: "等待連線", en: "Waiting for connection" },
   metrics: { zh: "当前读数", zhHant: "目前讀數", en: "Current readings" },
   refresh: { zh: "刷新一次", zhHant: "重新整理一次", en: "Refresh" },
