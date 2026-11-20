@@ -1,67 +1,123 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>NB-IoT 信号测试</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --green: #1e8e3e; --amber: #e8a33d; --red: #d93025;
-    --bg-soft: rgba(127,127,127,.09); --line: rgba(127,127,127,.28);
+    --g900: #1b5e43; --g700: #2e8b62; --g600: #35a173; --g500: #4caf7d; --g300: #a7dcc2;
+    --g100: #dcf3e6; --g50: #f3fbf6; --bg: #f6fcf8; --card: #ffffff;
+    --line: #cfe9db; --text: #14332a; --muted: #5d7d6f;
+    --amber: #d99a1f; --red: #cf4040;
+    color-scheme: light;
   }
-  * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 14px 14px 40px; max-width: 760px; margin-inline: auto; line-height: 1.5; }
-  header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  h1 { font-size: 1.15rem; margin: 0; flex: 1; }
-  h2 { font-size: .95rem; margin: 0 0 8px; opacity: .85; }
-  .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-  button { font: inherit; font-size: .92rem; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: #2f6fdb; color: #fff; cursor: pointer; }
-  button.ghost { background: transparent; color: inherit; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 14px 14px 32px; max-width: 760px; margin-inline: auto;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5; font-size: 15px;
+  }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  h1 { font-size: 1.1rem; margin: 0; flex: 1; color: var(--g900); letter-spacing: .2px; }
+  h2 { font-size: .95rem; margin: 0 0 10px; color: var(--g900); }
+  .hdr-actions { display: flex; align-items: center; gap: 8px; }
+
+  select, input[type=text] {
+    font: inherit; color: var(--text); background: #fff;
+    border: 1px solid var(--line); border-radius: 9px; padding: 7px 9px;
+  }
+  select { padding-right: 26px; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232e8b62'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; }
+  input[type=text] { flex: 1; min-width: 130px; }
+
+  button {
+    font: inherit; font-size: .92rem; padding: 8px 14px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--g600); background: var(--g600); color: #fff; transition: background .15s, box-shadow .15s;
+  }
+  button:active { background: var(--g700); }
+  button.ghost { background: #fff; color: var(--g700); border-color: var(--line); }
+  button.ghost:active { background: var(--g100); }
   button:disabled { opacity: .45; cursor: not-allowed; }
+
+  .chip-conn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px;
+    border: 1px solid var(--g500); background: #fff; color: var(--g700); font-size: .9rem;
+  }
+  .chip-conn.on { background: var(--g600); color: #fff; border-color: var(--g600); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--g500); }
+  .chip-conn.on .dot { background: #eafff4; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .muted { color: var(--muted); font-size: .85rem; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .muted { opacity: .7; font-size: .85rem; }
-  nav { display: flex; gap: 6px; margin-bottom: 12px; }
-  nav button { flex: 1; background: transparent; color: inherit; border: 1px solid var(--line); }
-  nav button.active { background: #2f6fdb; color: #fff; border-color: #2f6fdb; }
-  .signal { text-align: center; padding: 18px 12px; border-radius: 14px; border: 2px solid var(--line); transition: border-color .3s, background .3s; }
-  .signal.g1, .signal.g2 { border-color: var(--green); background: rgba(30,142,62,.08); }
-  .signal.g3, .signal.g4 { border-color: var(--amber); background: rgba(232,163,61,.10); }
-  .signal.g5, .signal.g6 { border-color: var(--red); background: rgba(217,48,37,.09); }
-  .signal .num { font-size: 3.4rem; font-weight: 800; line-height: 1; }
-  .signal.g1 .num, .signal.g2 .num { color: var(--green); }
+
+  nav { display: flex; gap: 8px; margin-bottom: 12px; }
+  nav button { flex: 1; background: #fff; color: var(--g700); border: 1px solid var(--line); }
+  nav button.active { background: var(--g600); color: #fff; border-color: var(--g600); }
+
+  .signal { text-align: center; padding: 22px 14px; border-radius: 16px; border: 2px solid var(--line); background: #fff; transition: border-color .25s, background .25s; }
+  .signal.g1, .signal.g2 { border-color: var(--g500); background: var(--g50); }
+  .signal.g3, .signal.g4 { border-color: #e9c46a; background: #fdf9ee; }
+  .signal.g5, .signal.g6 { border-color: #e08787; background: #fdf3f3; }
+  .signal .num { font-size: 3.6rem; font-weight: 800; line-height: 1; color: var(--g300); }
+  .signal.g1 .num, .signal.g2 .num { color: var(--g600); }
   .signal.g3 .num, .signal.g4 .num { color: var(--amber); }
   .signal.g5 .num, .signal.g6 .num { color: var(--red); }
-  .signal .lvl { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
-  .signal .big { font-size: 2rem; font-weight: 700; margin-top: 10px; }
-  .signal .unit { font-size: .9rem; opacity: .7; }
-  .advice { margin-top: 10px; font-size: .95rem; }
-  .meta { margin-top: 8px; font-size: .85rem; opacity: .8; }
+  .signal .lvl { font-size: 1.05rem; font-weight: 700; margin-top: 6px; }
+  .signal .big { font-size: 1.9rem; font-weight: 700; margin-top: 12px; }
+  .signal .unit { font-size: .85rem; color: var(--muted); font-weight: 400; }
+  .advice { margin-top: 10px; font-size: .93rem; color: var(--g900); }
+  .meta { margin-top: 8px; font-size: .82rem; color: var(--muted); }
+
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
-  td, th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
-  th { font-weight: 600; opacity: .8; }
-  td.v { font-family: ui-monospace, Consolas, monospace; }
-  input[type=text], select { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: inherit; }
-  input[type=text] { flex: 1; min-width: 120px; }
-  #log { font-family: ui-monospace, Consolas, monospace; font-size: .78rem; white-space: pre-wrap; word-break: break-all; background: #000; color: #0f0; padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; }
-  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: .78rem; }
-  .ok { color: var(--green); } .warn { color: var(--amber); } .bad { color: var(--red); }
+  td, th { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
+  th { font-weight: 600; color: var(--muted); font-size: .82rem; }
+  td.v { font-family: ui-monospace, Consolas, monospace; color: var(--g900); }
+  tr:last-child td { border-bottom: none; }
+
+  #log { font-family: ui-monospace, Consolas, monospace; font-size: .76rem; white-space: pre-wrap; word-break: break-all;
+    background: #0f1f18; color: #9fe8c3; padding: 10px; border-radius: 10px; max-height: 220px; overflow: auto; }
+  details.card { padding: 12px 14px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+
+  /* 弹窗 */
+  .mask { position: fixed; inset: 0; background: rgba(16,40,30,.42); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+  .mask[hidden] { display: none; }
+  .dialog { background: #fff; border-radius: 16px; padding: 18px; width: 100%; max-width: 380px; border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(16,40,30,.18); }
+  .dialog h2 { margin-bottom: 6px; }
+  .dialog .status { font-size: .92rem; margin: 10px 0; padding: 10px; border-radius: 10px; background: var(--g50); border: 1px solid var(--line); }
+  .dialog .status.err { background: #fdf3f3; border-color: #f0c6c6; color: #8f2f2f; }
+
+  footer { text-align: center; font-size: .76rem; color: var(--muted); margin-top: 18px; }
+  footer a { color: var(--g700); }
 </style>
 </head>
 <body>
 <header>
   <h1 data-i18n="title">NB-IoT 信号测试</h1>
-  <button class="ghost" id="langBtn" title="Language">EN</button>
+  <div class="hdr-actions">
+    <select id="langSel" aria-label="Language">
+      <option value="en">English</option>
+      <option value="zh">中文</option>
+    </select>
+    <button id="btnConnChip" class="chip-conn" type="button">
+      <span class="dot"></span><span id="connChipText" data-i18n="connect">连接</span>
+    </button>
+  </div>
 </header>
 
-<section class="card">
-  <div class="row">
-    <button id="btnConnect" data-i18n="connect">连接设备</button>
-    <button id="btnDisconnect" class="ghost" disabled data-i18n="disconnect">断开</button>
-    <span id="connStatus" class="muted" data-i18n="notConnected">未连接</span>
+<div class="mask" id="connMask" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <h2 id="dlgTitle" data-i18n="connTitle">设备连接</h2>
+    <div class="muted" data-i18n="connectHint">需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。</div>
+    <div class="status" id="dlgStatus" data-i18n="notConnected">未连接</div>
+    <div class="row">
+      <button id="btnConnect" data-i18n="connectDevice">连接设备</button>
+      <button id="btnDisconnect" class="ghost" disabled data-i18n="disconnect">断开</button>
+      <button id="btnCloseModal" class="ghost" data-i18n="close">关闭</button>
+    </div>
   </div>
-  <div class="muted" style="margin-top:6px" data-i18n="connectHint">需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。</div>
-</section>
+</div>
 
 <nav>
   <button id="tabSimple" class="active" data-i18n="tabSimple">客户视图</button>
@@ -69,7 +125,7 @@
 </nav>
 
 <section id="viewSimple">
-  <div class="card signal" id="signalCard">
+  <div class="signal" id="signalCard">
     <div class="num" id="gradeNum">–</div>
     <div class="lvl" id="gradeLvl" data-i18n="noData">等待连接</div>
     <div class="big"><span id="rsrpVal">--</span> <span class="unit">dBm</span></div>
@@ -93,16 +149,18 @@
       <tr><td>Band</td><td class="v" id="mBand">--</td></tr>
       <tr><td>Cell ID</td><td class="v" id="mCell">--</td></tr>
     </table>
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:12px">
       <button id="btnRefresh" data-i18n="refresh">刷新一次</button>
-      <label class="muted"><input type="checkbox" id="autoPoll" checked> <span data-i18n="autoPoll">自动刷新（5 秒）</span></label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="autoPoll" checked> <span data-i18n="autoPoll">自动刷新（5 秒）</span>
+      </label>
     </div>
   </div>
 </section>
 
 <section class="card">
   <h2 data-i18n="records">点位记录</h2>
-  <div class="row" style="margin-bottom:8px">
+  <div class="row" style="margin-bottom:10px">
     <input type="text" id="pointLabel" list="pointList" placeholder="点位标签，如 A1 原位" data-i18n-placeholder="pointPlaceholder">
     <datalist id="pointList">
       <option value="A1 原位"></option>
@@ -114,22 +172,22 @@
     <button id="btnSave" data-i18n="save">保存当前读数</button>
   </div>
   <div id="recordsWrap"></div>
-  <div class="row" style="margin-top:8px">
+  <div class="row" style="margin-top:10px">
     <button id="btnExport" class="ghost" data-i18n="exportCsv">导出 CSV</button>
     <button id="btnClear" class="ghost" data-i18n="clear">清空</button>
   </div>
-  <div id="compareWrap" style="margin-top:12px"></div>
+  <div id="compareWrap" style="margin-top:14px"></div>
 </section>
 
 <details class="card">
-  <summary class="muted" data-i18n="logTitle">AT 日志</summary>
-  <div id="log" style="margin-top:8px"></div>
+  <summary data-i18n="logTitle">AT 日志</summary>
+  <div id="log" style="margin-top:10px"></div>
 </details>
 
-<footer class="muted" style="margin-top:16px;font-size:.78rem;text-align:center">
+<footer>
   <div id="verLine"></div>
   <div data-i18n="alphaNote">Alpha 版本：功能与文案可能变动，现场使用请核对读数。</div>
-  <div style="margin-top:6px"><a href="go-no-go.html" style="color:inherit;opacity:.85" data-i18n="toolsLink">诊断工具（排障用）</a></div>
+  <div style="margin-top:6px"><a href="go-no-go.html" data-i18n="toolsLink">诊断工具（排障用）</a></div>
 </footer>
 
 <script>
@@ -810,13 +868,20 @@ exports.serial = new Serial();
   return exports;
 })();
 
+/* ================= 版本 ================= */
+const APP_VERSION = "0.3.0-alpha";
+const APP_BUILD = "2026-11-20";
+
 /* ================= i18n ================= */
 const I18N = {
   title: { zh: "NB-IoT 信号测试", en: "NB-IoT Signal Test" },
-  connect: { zh: "连接设备", en: "Connect" },
+  connect: { zh: "连接", en: "Connect" },
+  connTitle: { zh: "设备连接", en: "Connect device" },
+  connectDevice: { zh: "连接设备", en: "Connect" },
   disconnect: { zh: "断开", en: "Disconnect" },
+  close: { zh: "关闭", en: "Close" },
+  connected: { zh: "已连接", en: "Connected" },
   notConnected: { zh: "未连接", en: "Not connected" },
-  connectedAs: { zh: "已连接", en: "Connected" },
   connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
   tabSimple: { zh: "客户视图", en: "Simple" },
   tabAdvanced: { zh: "高级数据", en: "Advanced" },
@@ -855,33 +920,29 @@ const I18N = {
   colBand: { zh: "频段", en: "Band" },
   del: { zh: "删除", en: "Del" },
   compare: { zh: "两点位对比", en: "Compare two sites" },
-  cmpA: { zh: "基线", en: "Base" },
-  cmpB: { zh: "对比", en: "Compare" },
   rsrpDiff: { zh: "RSRP 差", en: "RSRP diff" },
   csqGain: { zh: "CSQ 改善", en: "CSQ gain" },
   pciSame: { zh: "PCI 相同（同一小区）", en: "same PCI (same cell)" },
   pciDiff: { zh: "PCI 不同（不同小区）", en: "different PCI (different cell)" },
   judgeRsrp: { zh: "判据一（RSRP 差 > 6 dB）", en: "Rule 1 (RSRP diff > 6 dB)" },
   judgeCsq: { zh: "判据二（CSQ 改善 ≥ 3）", en: "Rule 2 (CSQ gain ≥ 3)" },
-  judgePci: { zh: "判据三（PCI 对比）", en: "Rule 3 (PCI comparison)" },
   pass: { zh: "成立", en: "triggered" },
   fail: { zh: "不成立", en: "not triggered" },
-  cleared: { zh: "已清空记录", en: "Records cleared" },
-  alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", en: "Alpha build: features and wording may change; verify readings in the field." },
-  toolsLink: { zh: "诊断工具（排障用）", en: "Diagnostics tool" },
   saved: { zh: "已保存", en: "Saved" },
   needLabel: { zh: "请先填点位标签", en: "Enter a site label first" },
-  noReading: { zh: "还没有读数，先点“刷新一次”", en: "No reading yet; press Refresh" },
+  noReading: { zh: "还没有读数，先点「刷新一次」", en: "No reading yet; press Refresh" },
   connectFail: { zh: "连接失败", en: "Connection failed" },
   connectedOk: { zh: "已连接，开始读数", en: "Connected; reading" },
   busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次", en: "Interface busy: fully close the vendor App, then replug" },
   cancelled: { zh: "未选择设备", en: "No device selected" },
   notSecure: { zh: "页面必须在 HTTPS 下打开", en: "Page must be served over HTTPS" },
   disconnected: { zh: "已断开", en: "Disconnected" },
-  confirmClear: { zh: "确定清空全部记录？", en: "Clear all records?" }
+  confirmClear: { zh: "确定清空全部记录？", en: "Clear all records?" },
+  alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", en: "Alpha build: features and wording may change; verify readings in the field." },
+  toolsLink: { zh: "诊断工具（排障用）", en: "Diagnostics tool" }
 };
 
-let lang = localStorage.getItem("nbtest.lang") || "zh";
+let lang = localStorage.getItem("nbtest.lang") || "en";
 function t(key) {
   const item = I18N[key];
   if (!item) return key;
@@ -891,13 +952,10 @@ function applyI18n() {
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
-  document.getElementById("langBtn").textContent = lang === "zh" ? "EN" : "中文";
+  $("langSel").value = lang;
+  renderConnState();
   renderAll();
 }
-
-/* ================= 版本 ================= */
-const APP_VERSION = "0.1.0-alpha";
-const APP_BUILD = "2026-11-20";
 
 /* ================= 状态 ================= */
 const $ = (id) => document.getElementById(id);
@@ -914,7 +972,7 @@ function log(text, cls) {
   const span = document.createElement("span");
   span.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${text}\n`;
   if (cls === "tx") span.style.color = "#ffd54f";
-  if (cls === "sys") span.style.color = "#90a4ae";
+  if (cls === "sys") span.style.color = "#7f9b8d";
   el.appendChild(span);
   el.scrollTop = el.scrollHeight;
 }
@@ -955,11 +1013,27 @@ function explainError(e) {
   return m;
 }
 
+function openModal() { $("connMask").hidden = false; }
+function closeModal() { $("connMask").hidden = true; }
+function setDlgStatus(text, isErr) {
+  const el = $("dlgStatus");
+  el.textContent = text;
+  el.classList.toggle("err", !!isErr);
+}
+
+function renderConnState() {
+  const on = state.connected;
+  $("btnConnChip").classList.toggle("on", on);
+  $("connChipText").textContent = on ? t("connected") : t("connect");
+  $("btnDisconnect").disabled = !on;
+  $("btnConnect").disabled = on;
+}
+
 async function connect() {
   try {
     if (!window.isSecureContext) throw new Error(t("notSecure"));
     if (!navigator.usb) throw new Error("WebUSB unavailable");
-    $("connStatus").textContent = t("connect");
+    setDlgStatus(t("connectDevice") + "…");
     const device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x1a86 }] });
     let port;
     const hasVendor = (device.configurations[0] || { interfaces: [] }).interfaces
@@ -979,15 +1053,16 @@ async function connect() {
     state.writer = port.writable.getWriter();
     pipeRead(port);
     state.connected = true;
-    $("btnDisconnect").disabled = false;
-    $("btnConnect").disabled = true;
-    $("connStatus").textContent = t("connectedOk");
+    setDlgStatus(t("connectedOk"));
+    renderConnState();
     log("connected", "sys");
     schedulePoll();
     await refresh();
+    setTimeout(closeModal, 600);
   } catch (e) {
     state.connected = false;
-    $("connStatus").textContent = t("connectFail") + ": " + explainError(e);
+    renderConnState();
+    setDlgStatus(t("connectFail") + ": " + explainError(e), true);
     log(explainError(e), "sys");
   }
 }
@@ -1022,9 +1097,8 @@ function pipeRead(port) {
 function onDisconnected() {
   state.connected = false;
   state.port = state.writer = state.reader = null;
-  $("btnDisconnect").disabled = true;
-  $("btnConnect").disabled = false;
-  $("connStatus").textContent = t("disconnected");
+  renderConnState();
+  setDlgStatus(t("disconnected"));
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
 }
 
@@ -1092,7 +1166,7 @@ function renderAll() {
   const r = state.reading || {};
   const g = r.grade || null;
   const card = $("signalCard");
-  card.className = "card signal" + (g ? " g" + g : "");
+  card.className = "signal" + (g ? " g" + g : "");
   $("gradeNum").textContent = g ? String(g) : "–";
   $("gradeLvl").textContent = g ? t("lvl" + g) : t("noData");
   $("rsrpVal").textContent = fmt(r.rsrp, 1);
@@ -1130,7 +1204,7 @@ function renderRecords() {
     html += `<tr><td>${new Date(x.at).toLocaleTimeString()}</td><td>${escapeHtml(x.label)}</td>` +
       `<td class="v">${fmt(x.rsrp, 1)}</td><td>${x.grade ?? "--"}</td><td class="v">${fmt(x.csq)}</td>` +
       `<td class="v">${fmt(x.ecl)}</td><td class="v">${fmt(x.pci)}</td><td class="v">${x.band ? "B" + x.band : "--"}</td>` +
-      `<td><button class="ghost" style="padding:2px 8px;font-size:.78rem" data-del="${x.id}">${t("del")}</button></td></tr>`;
+      `<td><button class="ghost" style="padding:2px 8px;font-size:.76rem" data-del="${x.id}">${t("del")}</button></td></tr>`;
   });
   html += "</table>";
   wrap.innerHTML = html;
@@ -1147,7 +1221,7 @@ function renderCompare() {
   if (state.records.length < 2) { box.innerHTML = ""; return; }
   const opts = state.records.map((x) => `<option value="${x.id}">${escapeHtml(x.label)} (${fmt(x.rsrp, 1)} dBm)</option>`).join("");
   box.innerHTML = `<h2>${t("compare")}</h2><div class="row">` +
-    `<select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div><div id="cmpOut" style="margin-top:8px"></div>`;
+    `<select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div><div id="cmpOut" style="margin-top:10px"></div>`;
   $("cmpA").value = state.records[0].id;
   $("cmpB").value = state.records[state.records.length - 1].id;
   const run = () => {
@@ -1163,8 +1237,8 @@ function renderCompare() {
       `<div>${t("rsrpDiff")}: <b>${dRsrp.toFixed(1)} dB</b></div>` +
       `<div>${t("csqGain")}: <b>${dCsq}</b></div>` +
       `<div>${samePci ? t("pciSame") : t("pciDiff")}</div>` +
-      `<div style="margin-top:6px">${t("judgeRsrp")}: <span class="${cls(j1)}">${j1 ? t("pass") : t("fail")}</span></div>` +
-      `<div>${t("judgeCsq")}: <span class="${cls(j2)}">${j2 ? t("pass") : t("fail")}</span></div>`;
+      `<div style="margin-top:8px">${t("judgeRsrp")}: <span class="${cls(j1)}" style="color:${j1 ? "var(--g700)" : "var(--red)"}">${j1 ? t("pass") : t("fail")}</span></div>` +
+      `<div>${t("judgeCsq")}: <span class="${cls(j2)}" style="color:${j2 ? "var(--g700)" : "var(--red)"}">${j2 ? t("pass") : t("fail")}</span></div>`;
   };
   $("cmpA").addEventListener("change", run);
   $("cmpB").addEventListener("change", run);
@@ -1209,6 +1283,9 @@ function exportCsv() {
 }
 
 /* ================= 事件 ================= */
+$("btnConnChip").addEventListener("click", openModal);
+$("btnCloseModal").addEventListener("click", closeModal);
+$("connMask").addEventListener("click", (e) => { if (e.target === $("connMask")) closeModal(); });
 $("btnConnect").addEventListener("click", connect);
 $("btnDisconnect").addEventListener("click", disconnect);
 $("btnRefresh").addEventListener("click", refresh);
@@ -1220,8 +1297,8 @@ $("btnClear").addEventListener("click", () => {
 });
 $("tabSimple").addEventListener("click", () => switchView("simple"));
 $("tabAdvanced").addEventListener("click", () => switchView("advanced"));
-$("langBtn").addEventListener("click", () => {
-  lang = lang === "zh" ? "en" : "zh";
+$("langSel").addEventListener("change", (e) => {
+  lang = e.target.value;
   localStorage.setItem("nbtest.lang", lang);
   applyI18n();
 });
@@ -1234,6 +1311,7 @@ function switchView(v) {
 }
 
 applyI18n();
+renderConnState();
 $("verLine").textContent = `v${APP_VERSION} · build ${APP_BUILD}`;
 log("ready", "sys");
 </script>
