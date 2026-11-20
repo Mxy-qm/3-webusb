@@ -909,7 +909,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.0-alpha";
+const APP_VERSION = "0.7.1-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -954,6 +954,9 @@ const I18N = {
   offlineTitle: { zh: "设备已断开", zhHant: "裝置已中斷", en: "Device disconnected" },
   chipHint: { zh: "连接设备或查看连接状态", zhHant: "連線裝置或查看連線狀態", en: "Connect a device or view connection status" },
   updated: { zh: "更新于", zhHant: "更新於", en: "Updated" },
+  justNow: { zh: "刚刚", zhHant: "剛剛", en: "just now" },
+  agoSec: { zh: "{n} 秒前", zhHant: "{n} 秒前", en: "{n}s ago" },
+  agoMin: { zh: "{n} 分前", zhHant: "{n} 分前", en: "{n}m ago" },
   colTime: { zh: "时间", zhHant: "時間", en: "Time" },
   colPoint: { zh: "点位", zhHant: "點位", en: "Site" },
   colRsrp: { zh: "RSRP", zhHant: "RSRP", en: "RSRP" },
@@ -997,25 +1000,48 @@ const $ = (id) => document.getElementById(id);
 
 // 链路健康阈值
 const HEARTBEAT_TIMEOUT_MS = 12000;  // 超过这么久没收到任何 AT 响应 → 判定断开
-const STALE_MS = 15000;              // 超过这么久没成功刷新 → 数据标为过期
+// 数据新鲜度阈值：模组侧 AT+NUESTATS 快照实测平均 15.3s 才更新一次、最长 22s
+// （2026-11-20 日志，RX time 计数器连续 4 次轮询冻结）。取 30s 留余量，避免误报过期。
+const STALE_MS = 30000;
 const WATCHDOG_INTERVAL_MS = 3000;   // 看门狗检查间隔
 
 const state = {
   port: null, writer: null, reader: null, connected: false,
   reading: null, view: "simple", pollTimer: null, pollActive: false,
   refreshing: false, discard: false, lineQ: [],
-  lastOkAt: null,      // 最后一次成功刷新的时间戳
+  lastOkAt: null,      // 最后一次成功刷新的时间戳（链路健康，不代表数据新鲜）
   lastLineAt: null,    // 最后一次收到任意 AT 响应行的时间戳
   failCount: 0,        // 连续刷新失败次数
+  snapAt: null,        // 当前快照"首次被观测到"的时刻 → 数据年龄的起点
+  snapKey: null,       // 快照指纹（RX time）：只有它变了才说明模组给了新数据
+  ageTimer: null,      // "X 秒前"的每秒刷新定时器
   watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
 
+// 数据年龄：模组快照有多旧（不是我们多久前发过命令）
+function dataAgeMs() {
+  return state.snapAt ? Date.now() - state.snapAt : null;
+}
+
 // 派生链路状态：off（断开）/ stale（数据过期）/ live（正常）
 function linkState() {
   if (!state.connected) return "off";
-  if (!state.lastOkAt) return "stale";
-  return Date.now() - state.lastOkAt > STALE_MS ? "stale" : "live";
+  const age = dataAgeMs();
+  if (age === null) return "stale";
+  return age > STALE_MS ? "stale" : "live";
+}
+
+// 相对时间文案："刚刚 / X 秒前 / X 分前"
+// 用相对时间而不是绝对时刻，是因为模组平均 15s 才更新一次快照，
+// 显示 hh:mm:ss 会让人以为那就是"现在"，反而掩盖了数据本身是旧的。
+function ageText() {
+  const age = dataAgeMs();
+  if (age === null) return "";
+  const s = Math.max(0, Math.round(age / 1000));
+  if (s <= 2) return t("justNow");
+  if (s < 60) return t("agoSec").replace("{n}", String(s));
+  return t("agoMin").replace("{n}", String(Math.floor(s / 60)));
 }
 const NS_FIELD_RE = /^(Signal power|Total power|TX power|TX time|RX time|Cell ID|ECL|SNR|EARFCN|PCI|RSRQ|OPERATOR MODE|CURRENT BAND)\s*:/i;
 
@@ -1144,6 +1170,8 @@ async function connect() {
     state.lastOkAt = null;
     state.lastLineAt = Date.now();
     state.failCount = 0;
+    state.snapAt = null;
+    state.snapKey = null;
     setDlgStatus(t("connectedOk"));
     renderConnState();
     log("connected", "sys");
@@ -1198,6 +1226,8 @@ function onDisconnected() {
   state.lastOkAt = null;
   state.lastLineAt = null;
   state.failCount = 0;
+  state.snapAt = null;
+  state.snapKey = null;
   stopPoll();
   renderConnState();
   setDlgStatus(t("disconnected"));
@@ -1224,6 +1254,14 @@ function schedulePoll() {
     }
   })();
   startWatchdog();
+  // 每秒只重刷"X 秒前"这几个字。不能每秒 renderAll()——那会连带重建记录列表。
+  state.ageTimer = setInterval(renderAge, 1000);
+}
+
+// 数据年龄每秒走字（只改一个 span，不动其他 DOM）
+function renderAge() {
+  const el = $("ageTxt");
+  if (el) el.textContent = ageText();
 }
 
 // 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
@@ -1249,6 +1287,7 @@ function stopWatchdog() {
 function stopPoll() {
   state.pollActive = false;
   if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  if (state.ageTimer) { clearInterval(state.ageTimer); state.ageTimer = null; }
   stopWatchdog();
 }
 
@@ -1286,8 +1325,26 @@ function parseNuestats(lines) {
     else if ((r = /PCI:\s*(-?\d+)/i.exec(l))) m.pci = +r[1];
     else if ((r = /Cell ID:\s*(-?\d+)/i.exec(l))) m.cellId = +r[1];
     else if ((r = /CURRENT BAND:\s*(-?\d+)/i.exec(l))) m.band = +r[1];
+    else if ((r = /RX time:\s*(-?\d+)/i.exec(l))) m.rxTime = +r[1];
   }
   return sanitize(m);
+}
+
+/**
+ * 判断"模组这次给的是不是新快照"。
+ *
+ * 只看 RX time：它是模组侧累计计数器（上次开机以来的接收时长），模组不刷新统计时
+ * 它原地不动。实测同一份快照会被连续返回 2~4 次（RX time 冻结 16 秒不动），
+ * 此时数据年龄必须继续走，否则界面会把 20 秒前的快照标成"刚刚"。
+ *
+ * 不能要求 13 个字段全都变化——14:33:21 那次 RX time 前进了 18ms（快照确实是新的），
+ * 但 RSRP/SNR/PCI 全都没动；信号稳定时字段本来就不抖。
+ * TX time 全程序停在 1085（模组空闲不发送），不能拿它判断。
+ */
+function snapshotKey(m) {
+  if (m.rxTime !== null && m.rxTime !== undefined && !isNaN(m.rxTime)) return "rx:" + m.rxTime;
+  // 兜底：没有 RX time 的老固件，退回关键字段指纹
+  return "sig:" + [m.rsrp, m.rssi, m.rsrq, m.snr, m.ecl, m.earfcn, m.pci, m.cellId].join(",");
 }
 
 /**
@@ -1358,7 +1415,15 @@ async function doRefresh() {
   if (!ns) { log("NUESTATS incomplete after retries", "sys"); return false; }
   ns.csq = csq;
   ns.grade = gradeOf(ns.rsrp, csq);
-  ns.at = new Date().toISOString();
+
+  // 快照新鲜度：只有模组换了新快照才重置数据年龄
+  const key = snapshotKey(ns);
+  if (key !== state.snapKey) {
+    state.snapKey = key;
+    state.snapAt = Date.now();
+  }
+  // at = 模组测量时刻（不是我们发命令的时刻），保存记录和 CSV 都用它
+  ns.at = new Date(state.snapAt).toISOString();
   state.reading = ns;
   renderAll();
   return true;
@@ -1390,8 +1455,9 @@ function renderAll() {
   $("rsrpVal").textContent = fmt(r.rsrp, 1);
 
   const csqTxt = r.csq === null || r.csq === undefined ? "" : (r.csq === 99 ? t("noSignal") : "CSQ " + r.csq);
+  // "更新于 X 秒前" —— 相对时间，每秒由 renderAge() 单独刷新（不重绘整张卡片）
   const metaParts = [csqTxt, r.band ? "B" + r.band : "",
-    r.at ? t("updated") + " " + new Date(r.at).toTimeString().slice(0, 8) : ""];
+    r.at ? `${t("updated")} <span id="ageTxt">${ageText()}</span>` : ""];
   if (link === "stale") metaParts.push(`<span class="staleTag">${t("staleData")}</span>`);
   if (link === "off") {
     $("simpleMeta").textContent = [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
