@@ -91,18 +91,27 @@
   footer a { color: var(--g700); }
 
   /* 点位记录 */
-  .rec { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
+  .rec-head, .rec {
+    display: grid; align-items: center; gap: 6px;
+    grid-template-columns: 42px minmax(0, 1fr) 64px 44px 38px 30px;
+  }
+  .rec-head { font-size: .72rem; color: var(--muted); padding: 2px 0 6px; }
+  .rec-head span { font-weight: 500; }
+  .rec-head .h-num { text-align: right; }
+  .rec { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .86rem; }
   .rec:last-child { border-bottom: none; }
-  .rec .lbl { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rec .time { color: var(--muted); font-size: .78rem; }
-  .rec .val { font-family: ui-monospace, Consolas, monospace; color: var(--g900); }
-  .dotg { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-  .dotg.g1, .dotg.g2 { background: var(--g600); }
-  .dotg.g3, .dotg.g4 { background: var(--amber); }
-  .dotg.g5, .dotg.g6 { background: var(--red); }
+  .gbadge { font-size: .7rem; line-height: 1.5; padding: 0 6px; border-radius: 999px; color: #fff; justify-self: start; font-family: ui-monospace, Consolas, monospace; }
+  .gbadge.g1, .gbadge.g2 { background: var(--g600); }
+  .gbadge.g3, .gbadge.g4 { background: var(--amber); }
+  .gbadge.g5, .gbadge.g6 { background: var(--red); }
+  .rec .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; min-width: 0; }
+  .rec .num { font-family: ui-monospace, Consolas, monospace; text-align: right; color: var(--g900); }
+  .xdel { background: none; border: none; color: var(--muted); font-size: 1.05rem; line-height: 1; padding: 2px 4px; cursor: pointer; justify-self: center; }
+  @media (max-width: 360px) {
+    .rec-head, .rec { grid-template-columns: 36px minmax(0, 1fr) 58px 40px 34px 24px; gap: 4px; }
+    .rec { font-size: .82rem; }
+  }
   .empty { text-align: center; color: var(--muted); font-size: .85rem; padding: 14px 6px; border: 1px dashed var(--line); border-radius: 12px; }
-  .cmp-line { padding: 5px 0; font-size: .9rem; }
-  .cmp-verdict { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--g50); border: 1px solid var(--line); font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -887,7 +896,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.5.0-alpha";
+const APP_VERSION = "0.5.1-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -950,6 +959,7 @@ const I18N = {
   disconnected: { zh: "已断开", zhHant: "已中斷", en: "Disconnected" },
   confirmClear: { zh: "确定清空全部记录？", zhHant: "確定清除全部記錄？", en: "Clear all records?" },
   alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", zhHant: "Alpha 版本：功能與文案可能變動，現場使用請核對讀數。", en: "Alpha build: features and wording may change; verify readings in the field." },
+  confirmDel: { zh: "删除这条记录？", zhHant: "刪除這筆記錄？", en: "Delete this record?" },
   toolsLink: { zh: "诊断工具（排障用）", zhHant: "診斷工具（排障用）", en: "Diagnostics tool" }
 };
 let lang = localStorage.getItem("nbtest.lang") || "en";
@@ -1274,15 +1284,26 @@ function renderRecords() {
     wrap.innerHTML = `<div class="empty">${t("emptyHint")}</div>`;
     return;
   }
-  wrap.innerHTML = state.records.map((x) => `
-    <div class="rec">
-      <span class="dotg g${x.grade ?? 0}"></span>
-      <span class="lbl">${escapeHtml(x.label)}<div class="time">${new Date(x.at).toLocaleTimeString()} · ECL ${fmt(x.ecl)} · PCI ${fmt(x.pci)}</div></span>
-      <span class="val">${fmt(x.rsrp, 1)} dBm</span>
-      <span class="val">CSQ ${fmt(x.csq)}</span>
-      <button class="ghost" style="padding:2px 8px;font-size:.75rem" data-del="${x.id}">${t("del")}</button>
-    </div>`).join("");
+  const head = `<div class="rec-head">
+      <span>${t("colGrade")}</span><span>${t("colPoint")}</span>
+      <span class="h-num">${t("colRsrp")}</span><span class="h-num">${t("colCsq")}</span>
+      <span class="h-num">${t("colEcl")}</span><span></span>
+    </div>`;
+  const rows = state.records.map((x) => {
+    const title = [x.label, new Date(x.at).toLocaleString(), "PCI " + fmt(x.pci), x.band ? "B" + x.band : ""].filter(Boolean).join(" · ");
+    const g = x.grade ?? 0;
+    return `<div class="rec">
+      <span class="gbadge g${g}">L${g || "-"}</span>
+      <span class="lbl" title="${escapeHtml(title)}">${escapeHtml(x.label)}</span>
+      <span class="num">${fmt(x.rsrp, 1)}</span>
+      <span class="num">${fmt(x.csq)}</span>
+      <span class="num">${fmt(x.ecl)}</span>
+      <button class="xdel" data-del="${x.id}" title="${t("del")}" aria-label="${t("del")}">×</button>
+    </div>`;
+  }).join("");
+  wrap.innerHTML = head + rows;
   wrap.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+    if (!confirm(t("confirmDel"))) return;
     state.records = state.records.filter((x) => String(x.id) !== b.dataset.del);
     persistRecords();
     renderRecords();
