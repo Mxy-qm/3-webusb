@@ -111,7 +111,8 @@
   <div class="hdr-actions">
     <select id="langSel" aria-label="Language">
       <option value="en">English</option>
-      <option value="zh">中文</option>
+      <option value="zh">简体中文</option>
+      <option value="zhHant">繁體中文</option>
     </select>
     <button id="btnConnChip" class="chip-conn" type="button">
       <span class="dot"></span><span id="connChipText" data-i18n="connect">连接</span>
@@ -162,6 +163,7 @@
       <tr><td>Band</td><td class="v" id="mBand">--</td></tr>
       <tr><td>Cell ID</td><td class="v" id="mCell">--</td></tr>
     </table>
+    <div class="muted" style="margin-top:8px" data-i18n="eclNote">ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。</div>
     <div class="row" style="margin-top:12px">
       <button id="btnRefresh" data-i18n="refresh">刷新一次</button>
       <label class="muted" style="display:flex;align-items:center;gap:6px">
@@ -188,7 +190,7 @@
     <button id="btnExport" class="ghost" data-i18n="exportCsv">导出 CSV</button>
     <button id="btnClear" class="ghost" data-i18n="clear">清空</button>
   </div>
-  <div id="compareWrap" style="margin-top:14px"></div>
+
 </section>
 
 <details class="card">
@@ -885,88 +887,71 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.4.1-alpha";
+const APP_VERSION = "0.5.0-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
 const I18N = {
-  title: { zh: "NB-IoT 信号测试", en: "NB-IoT Signal Test" },
-  connect: { zh: "连接", en: "Connect" },
-  connTitle: { zh: "设备连接", en: "Connect device" },
-  connectDevice: { zh: "连接设备", en: "Connect" },
-  disconnect: { zh: "断开", en: "Disconnect" },
-  close: { zh: "关闭", en: "Close" },
-  connected: { zh: "已连接", en: "Connected" },
-  notConnected: { zh: "未连接", en: "Not connected" },
-  connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
-  tabSimple: { zh: "客户视图", en: "Simple" },
-  tabAdvanced: { zh: "高级数据", en: "Advanced" },
-  noData: { zh: "等待连接", en: "Waiting for connection" },
-  metrics: { zh: "当前读数", en: "Current readings" },
-  refresh: { zh: "刷新一次", en: "Refresh" },
-  autoPoll: { zh: "自动刷新（5 秒）", en: "Auto refresh (5 s)" },
-  recordsTitle: { zh: "现场点位记录", en: "Site records" },
-  recordsHelp: { zh: "每测一个位置存一条；换位置再存一条，存满两条就能自动对比。", en: "Save one record per location. Move, save again — with two records you get an automatic comparison." },
-  pointPlaceholder: { zh: "点位名称，如 树-001 正面", en: "Site name, e.g. tree-001 front" },
-  save: { zh: "保存当前读数", en: "Save reading" },
-  saveHintReady: { zh: "读数已就绪：填好点位名后点保存。", en: "Reading ready — type a site name, then save." },
-  saveHintNoConn: { zh: "还没有读数：先点右上角 Connect 连接设备。", en: "No reading yet — tap Connect at the top right first." },
-  emptyHint: { zh: "还没有记录。连接设备 → 填点位名 → 点「保存当前读数」。", en: "No records yet. Connect → type a site name → tap Save reading." },
-  cmpTitle: { zh: "两点位对比", en: "Compare two sites" },
-  cmpPick: { zh: "选择要对比的两个点位", en: "Choose two sites" },
-  cmpHigher: { zh: "高", en: "higher by" },
-  cmpLower: { zh: "低", en: "lower by" },
-  cmpVerdictStrong: { zh: "差异明显：换位置确实有效，可作为排查依据。", en: "Clear difference — relocating really helps; usable as evidence." },
-  cmpVerdictWeak: { zh: "差异不大：位置影响有限，判据一/二都不成立。", en: "Small difference — location matters little; rules 1 and 2 are not triggered." },
-  exportCsv: { zh: "导出 CSV", en: "Export CSV" },
-  clear: { zh: "清空", en: "Clear" },
-  logTitle: { zh: "AT 日志", en: "AT log" },
-  copyLog: { zh: "复制日志", en: "Copy log" },
-  copied: { zh: "已复制", en: "Copied" },
-  copyFail: { zh: "复制失败，请长按选择文本", en: "Copy failed; select the text manually" },
-  clearLog: { zh: "清空日志", en: "Clear log" },
-  lvl1: { zh: "覆盖非常好", en: "Excellent coverage" },
-  lvl2: { zh: "覆盖好", en: "Good coverage" },
-  lvl3: { zh: "覆盖较好", en: "Fair coverage" },
-  lvl4: { zh: "覆盖一般", en: "Marginal coverage" },
-  lvl5: { zh: "覆盖差", en: "Poor coverage" },
-  lvl6: { zh: "覆盖较差", en: "Very poor coverage" },
-
-  noSignal: { zh: "无信号（CSQ 99）", en: "No signal (CSQ 99)" },
-  updated: { zh: "更新于", en: "Updated" },
-  noRecords: { zh: "还没有记录。连接后填好点位标签再点保存。", en: "No records yet. Connect, enter a site label, then save." },
-  colTime: { zh: "时间", en: "Time" },
-  colPoint: { zh: "点位", en: "Site" },
-  colRsrp: { zh: "RSRP", en: "RSRP" },
-  colGrade: { zh: "等级", en: "Level" },
-  colCsq: { zh: "CSQ", en: "CSQ" },
-  colEcl: { zh: "ECL", en: "ECL" },
-  colPci: { zh: "PCI", en: "PCI" },
-  colBand: { zh: "频段", en: "Band" },
-  del: { zh: "删除", en: "Del" },
-  compare: { zh: "两点位对比", en: "Compare two sites" },
-  rsrpDiff: { zh: "RSRP 差", en: "RSRP diff" },
-  csqGain: { zh: "CSQ 改善", en: "CSQ gain" },
-  pciSame: { zh: "同一小区", en: "same cell" },
-  pciDiff: { zh: "不同小区", en: "different cell" },
-  judgeRsrp: { zh: "判据一（RSRP 差 > 6 dB）", en: "Rule 1 (RSRP diff > 6 dB)" },
-  judgeCsq: { zh: "判据二（CSQ 改善 ≥ 3）", en: "Rule 2 (CSQ gain ≥ 3)" },
-  pass: { zh: "成立", en: "triggered" },
-  fail: { zh: "不成立", en: "not triggered" },
-  saved: { zh: "已保存", en: "Saved" },
-  needLabel: { zh: "请先填点位标签", en: "Enter a site label first" },
-  noReading: { zh: "还没有读数，先点「刷新一次」", en: "No reading yet; press Refresh" },
-  connectFail: { zh: "连接失败", en: "Connection failed" },
-  connectedOk: { zh: "已连接，开始读数", en: "Connected; reading" },
-  busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次；若选择框里有两个同名设备，换另一个再试", en: "Interface busy: fully close the vendor App and replug; if two identical devices are listed, try the other one" },
-  cancelled: { zh: "未选择设备", en: "No device selected" },
-  notSecure: { zh: "页面必须在 HTTPS 下打开", en: "Page must be served over HTTPS" },
-  disconnected: { zh: "已断开", en: "Disconnected" },
-  confirmClear: { zh: "确定清空全部记录？", en: "Clear all records?" },
-  alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", en: "Alpha build: features and wording may change; verify readings in the field." },
-  toolsLink: { zh: "诊断工具（排障用）", en: "Diagnostics tool" }
+  title: { zh: "NB-IoT 信号测试", zhHant: "NB-IoT 訊號測試", en: "NB-IoT Signal Test" },
+  connect: { zh: "连接", zhHant: "連線", en: "Connect" },
+  connTitle: { zh: "设备连接", zhHant: "裝置連線", en: "Connect device" },
+  connectDevice: { zh: "连接设备", zhHant: "連線裝置", en: "Connect" },
+  disconnect: { zh: "断开", zhHant: "中斷", en: "Disconnect" },
+  close: { zh: "关闭", zhHant: "關閉", en: "Close" },
+  connected: { zh: "已连接", zhHant: "已連線", en: "Connected" },
+  notConnected: { zh: "未连接", zhHant: "未連線", en: "Not connected" },
+  connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", zhHant: "需要 HTTPS 頁面、測試棒已插好、厚德 App 已完全關閉。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
+  tabSimple: { zh: "客户视图", zhHant: "客戶檢視", en: "Simple" },
+  tabAdvanced: { zh: "高级数据", zhHant: "進階數據", en: "Advanced" },
+  noData: { zh: "等待连接", zhHant: "等待連線", en: "Waiting for connection" },
+  metrics: { zh: "当前读数", zhHant: "目前讀數", en: "Current readings" },
+  refresh: { zh: "刷新一次", zhHant: "重新整理一次", en: "Refresh" },
+  autoPoll: { zh: "自动刷新（5 秒）", zhHant: "自動更新（5 秒）", en: "Auto refresh (5 s)" },
+  recordsTitle: { zh: "现场点位记录", zhHant: "現場點位記錄", en: "Site records" },
+  recordsHelp: { zh: "每测一个位置存一条；换位置再存一条。", zhHant: "每測一個位置存一筆；換位置再存一筆。", en: "Save one record per location. Move, then save again." },
+  pointPlaceholder: { zh: "点位名称，如 树-001 正面", zhHant: "點位名稱，如 樹-001 正面", en: "Site name, e.g. tree-001 front" },
+  save: { zh: "保存当前读数", zhHant: "儲存目前讀數", en: "Save reading" },
+  saveHintReady: { zh: "读数已就绪：填好点位名后点保存。", zhHant: "讀數已就緒：填好點位名稱後再儲存。", en: "Reading ready — type a site name, then save." },
+  saveHintNoConn: { zh: "还没有读数：先点右上角 Connect 连接设备。", zhHant: "還沒有讀數：請先點右上角 Connect 連線裝置。", en: "No reading yet — tap Connect at the top right first." },
+  emptyHint: { zh: "还没有记录。连接设备 → 填点位名 → 点「保存当前读数」。", zhHant: "還沒有記錄。連線裝置 → 填寫點位名稱 → 點「儲存目前讀數」。", en: "No records yet. Connect → type a site name → tap Save reading." },
+  exportCsv: { zh: "导出 CSV", zhHant: "匯出 CSV", en: "Export CSV" },
+  clear: { zh: "清空", zhHant: "清除", en: "Clear" },
+  logTitle: { zh: "AT 日志", zhHant: "AT 日誌", en: "AT log" },
+  copyLog: { zh: "复制日志", zhHant: "複製日誌", en: "Copy log" },
+  copied: { zh: "已复制", zhHant: "已複製", en: "Copied" },
+  copyFail: { zh: "复制失败，请长按选择文本", zhHant: "複製失敗，請長按選取文字", en: "Copy failed; select the text manually" },
+  clearLog: { zh: "清空日志", zhHant: "清除日誌", en: "Clear log" },
+  lvl1: { zh: "覆盖非常好", zhHant: "覆蓋非常好", en: "Excellent coverage" },
+  lvl2: { zh: "覆盖好", zhHant: "覆蓋好", en: "Good coverage" },
+  lvl3: { zh: "覆盖较好", zhHant: "覆蓋較好", en: "Fair coverage" },
+  lvl4: { zh: "覆盖一般", zhHant: "覆蓋一般", en: "Marginal coverage" },
+  lvl5: { zh: "覆盖差", zhHant: "覆蓋差", en: "Poor coverage" },
+  lvl6: { zh: "覆盖较差", zhHant: "覆蓋較差", en: "Very poor coverage" },
+  eclNote: { zh: "ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。", zhHant: "ECL = 覆蓋增強等級：0 最好、1 中等、2 最差（數值越小訊號越強）。", en: "ECL = coverage enhancement level: 0 best, 1 medium, 2 worst (lower is stronger)." },
+  noSignal: { zh: "无信号（CSQ 99）", zhHant: "無訊號（CSQ 99）", en: "No signal (CSQ 99)" },
+  updated: { zh: "更新于", zhHant: "更新於", en: "Updated" },
+  colTime: { zh: "时间", zhHant: "時間", en: "Time" },
+  colPoint: { zh: "点位", zhHant: "點位", en: "Site" },
+  colRsrp: { zh: "RSRP", zhHant: "RSRP", en: "RSRP" },
+  colGrade: { zh: "等级", zhHant: "等級", en: "Level" },
+  colCsq: { zh: "CSQ", zhHant: "CSQ", en: "CSQ" },
+  colEcl: { zh: "ECL", zhHant: "ECL", en: "ECL" },
+  colPci: { zh: "PCI", zhHant: "PCI", en: "PCI" },
+  colBand: { zh: "频段", zhHant: "頻段", en: "Band" },
+  del: { zh: "删除", zhHant: "刪除", en: "Del" },
+  saved: { zh: "已保存", zhHant: "已儲存", en: "Saved" },
+  needLabel: { zh: "请先填点位名称", zhHant: "請先填寫點位名稱", en: "Enter a site name first" },
+  noReading: { zh: "还没有读数，先点「刷新一次」", zhHant: "還沒有讀數，請先點「重新整理一次」", en: "No reading yet; press Refresh" },
+  connectFail: { zh: "连接失败", zhHant: "連線失敗", en: "Connection failed" },
+  connectedOk: { zh: "已连接，开始读数", zhHant: "已連線，開始讀取", en: "Connected; reading" },
+  busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次；若选择框里有两个同名设备，换另一个再试", zhHant: "介面被佔用：請徹底關閉厚德 App 後拔插一次；若選擇框中出現兩個同名裝置，請改用另一個", en: "Interface busy: fully close the vendor App and replug; if two identical devices are listed, try the other one" },
+  cancelled: { zh: "未选择设备", zhHant: "未選擇裝置", en: "No device selected" },
+  notSecure: { zh: "页面必须在 HTTPS 下打开", zhHant: "頁面必須在 HTTPS 下開啟", en: "Page must be served over HTTPS" },
+  disconnected: { zh: "已断开", zhHant: "已中斷", en: "Disconnected" },
+  confirmClear: { zh: "确定清空全部记录？", zhHant: "確定清除全部記錄？", en: "Clear all records?" },
+  alphaNote: { zh: "Alpha 版本：功能与文案可能变动，现场使用请核对读数。", zhHant: "Alpha 版本：功能與文案可能變動，現場使用請核對讀數。", en: "Alpha build: features and wording may change; verify readings in the field." },
+  toolsLink: { zh: "诊断工具（排障用）", zhHant: "診斷工具（排障用）", en: "Diagnostics tool" }
 };
-
 let lang = localStorage.getItem("nbtest.lang") || "en";
 function t(key) {
   const item = I18N[key];
@@ -974,7 +959,7 @@ function t(key) {
   return item[lang] || item.zh || key;
 }
 function applyI18n() {
-  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : (lang === "zhHant" ? "zh-TW" : "en");
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   $("langSel").value = lang;
@@ -1287,7 +1272,6 @@ function renderRecords() {
   const wrap = $("recordsWrap");
   if (!state.records.length) {
     wrap.innerHTML = `<div class="empty">${t("emptyHint")}</div>`;
-    $("compareWrap").innerHTML = "";
     return;
   }
   wrap.innerHTML = state.records.map((x) => `
@@ -1303,37 +1287,6 @@ function renderRecords() {
     persistRecords();
     renderRecords();
   }));
-  renderCompare();
-}
-
-function renderCompare() {
-  const box = $("compareWrap");
-  if (state.records.length < 2) { box.innerHTML = ""; return; }
-  const opts = state.records.map((x) => `<option value="${x.id}">${escapeHtml(x.label)}</option>`).join("");
-  box.innerHTML = `<h2>${t("cmpTitle")}</h2><div class="muted" style="margin-bottom:6px">${t("cmpPick")}</div>` +
-    `<div class="row"><select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div>` +
-    `<div id="cmpOut" style="margin-top:10px"></div>`;
-  $("cmpA").value = state.records[0].id;
-  $("cmpB").value = state.records[state.records.length - 1].id;
-  const run = () => {
-    const a = state.records.find((x) => String(x.id) === $("cmpA").value);
-    const b = state.records.find((x) => String(x.id) === $("cmpB").value);
-    if (!a || !b) return;
-    const dRsrp = (b.rsrp ?? 0) - (a.rsrp ?? 0);
-    const dCsq = (b.csq ?? 0) - (a.csq ?? 0);
-    const samePci = a.pci === b.pci;
-    const strong = Math.abs(dRsrp) > 6 || dCsq >= 3;
-    $("cmpOut").innerHTML =
-      `<div class="cmp-line">RSRP: <b>${escapeHtml(b.label)}</b> ${dRsrp >= 0 ? t("cmpHigher") : t("cmpLower")} ` +
-        `<b>${Math.abs(dRsrp).toFixed(1)} dB</b>（${fmt(a.rsrp, 1)} → ${fmt(b.rsrp, 1)}）</div>` +
-      `<div class="cmp-line">CSQ: ${dCsq >= 0 ? t("cmpHigher") : t("cmpLower")} <b>${Math.abs(dCsq)}</b>` +
-        `（${fmt(a.csq)} → ${fmt(b.csq)}）</div>` +
-      `<div class="cmp-line">PCI: ${samePci ? t("pciSame") : t("pciDiff")}（${fmt(a.pci)} / ${fmt(b.pci)}）</div>` +
-      `<div class="cmp-verdict">${strong ? t("cmpVerdictStrong") : t("cmpVerdictWeak")}</div>`;
-  };
-  $("cmpA").addEventListener("change", run);
-  $("cmpB").addEventListener("change", run);
-  run();
 }
 
 function escapeHtml(s) {
