@@ -3,15 +3,1226 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NB-IoT 测试工具</title>
-<meta http-equiv="refresh" content="0; url=go-no-go.html">
+<title>NB-IoT 信号测试</title>
 <style>
-  body { font-family: system-ui, sans-serif; padding: 24px; line-height: 1.6; }
-  a { font-size: 1.1rem; }
+  :root {
+    color-scheme: light dark;
+    --green: #1e8e3e; --amber: #e8a33d; --red: #d93025;
+    --bg-soft: rgba(127,127,127,.09); --line: rgba(127,127,127,.28);
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 14px 14px 40px; max-width: 760px; margin-inline: auto; line-height: 1.5; }
+  header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  h1 { font-size: 1.15rem; margin: 0; flex: 1; }
+  h2 { font-size: .95rem; margin: 0 0 8px; opacity: .85; }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  button { font: inherit; font-size: .92rem; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line); background: #2f6fdb; color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: inherit; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .muted { opacity: .7; font-size: .85rem; }
+  nav { display: flex; gap: 6px; margin-bottom: 12px; }
+  nav button { flex: 1; background: transparent; color: inherit; border: 1px solid var(--line); }
+  nav button.active { background: #2f6fdb; color: #fff; border-color: #2f6fdb; }
+  .signal { text-align: center; padding: 18px 12px; border-radius: 14px; border: 2px solid var(--line); transition: border-color .3s, background .3s; }
+  .signal.g1, .signal.g2 { border-color: var(--green); background: rgba(30,142,62,.08); }
+  .signal.g3, .signal.g4 { border-color: var(--amber); background: rgba(232,163,61,.10); }
+  .signal.g5, .signal.g6 { border-color: var(--red); background: rgba(217,48,37,.09); }
+  .signal .num { font-size: 3.4rem; font-weight: 800; line-height: 1; }
+  .signal.g1 .num, .signal.g2 .num { color: var(--green); }
+  .signal.g3 .num, .signal.g4 .num { color: var(--amber); }
+  .signal.g5 .num, .signal.g6 .num { color: var(--red); }
+  .signal .lvl { font-size: 1.1rem; font-weight: 700; margin-top: 4px; }
+  .signal .big { font-size: 2rem; font-weight: 700; margin-top: 10px; }
+  .signal .unit { font-size: .9rem; opacity: .7; }
+  .advice { margin-top: 10px; font-size: .95rem; }
+  .meta { margin-top: 8px; font-size: .85rem; opacity: .8; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  td, th { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  th { font-weight: 600; opacity: .8; }
+  td.v { font-family: ui-monospace, Consolas, monospace; }
+  input[type=text], select { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: inherit; }
+  input[type=text] { flex: 1; min-width: 120px; }
+  #log { font-family: ui-monospace, Consolas, monospace; font-size: .78rem; white-space: pre-wrap; word-break: break-all; background: #000; color: #0f0; padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); font-size: .78rem; }
+  .ok { color: var(--green); } .warn { color: var(--amber); } .bad { color: var(--red); }
 </style>
 </head>
 <body>
-<p>正在跳转到 <a href="go-no-go.html">WebUSB go/no-go 测试页</a>…</p>
-<script>location.replace("go-no-go.html");</script>
+<header>
+  <h1 data-i18n="title">NB-IoT 信号测试</h1>
+  <button class="ghost" id="langBtn" title="Language">EN</button>
+</header>
+
+<section class="card">
+  <div class="row">
+    <button id="btnConnect" data-i18n="connect">连接设备</button>
+    <button id="btnDisconnect" class="ghost" disabled data-i18n="disconnect">断开</button>
+    <span id="connStatus" class="muted" data-i18n="notConnected">未连接</span>
+  </div>
+  <div class="muted" style="margin-top:6px" data-i18n="connectHint">需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。</div>
+</section>
+
+<nav>
+  <button id="tabSimple" class="active" data-i18n="tabSimple">客户视图</button>
+  <button id="tabAdvanced" data-i18n="tabAdvanced">高级数据</button>
+</nav>
+
+<section id="viewSimple">
+  <div class="card signal" id="signalCard">
+    <div class="num" id="gradeNum">–</div>
+    <div class="lvl" id="gradeLvl" data-i18n="noData">等待连接</div>
+    <div class="big"><span id="rsrpVal">--</span> <span class="unit">dBm</span></div>
+    <div class="advice" id="advice"></div>
+    <div class="meta" id="simpleMeta"></div>
+  </div>
+</section>
+
+<section id="viewAdvanced" hidden>
+  <div class="card">
+    <h2 data-i18n="metrics">当前读数</h2>
+    <table>
+      <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
+      <tr><td>RSRQ</td><td class="v" id="mRsrq">--</td></tr>
+      <tr><td>RSSI</td><td class="v" id="mRssi">--</td></tr>
+      <tr><td>SNR</td><td class="v" id="mSnr">--</td></tr>
+      <tr><td>CSQ</td><td class="v" id="mCsq">--</td></tr>
+      <tr><td>ECL</td><td class="v" id="mEcl">--</td></tr>
+      <tr><td>EARFCN</td><td class="v" id="mEarfcn">--</td></tr>
+      <tr><td>PCI</td><td class="v" id="mPci">--</td></tr>
+      <tr><td>Band</td><td class="v" id="mBand">--</td></tr>
+      <tr><td>Cell ID</td><td class="v" id="mCell">--</td></tr>
+    </table>
+    <div class="row" style="margin-top:10px">
+      <button id="btnRefresh" data-i18n="refresh">刷新一次</button>
+      <label class="muted"><input type="checkbox" id="autoPoll" checked> <span data-i18n="autoPoll">自动刷新（5 秒）</span></label>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2 data-i18n="records">点位记录</h2>
+  <div class="row" style="margin-bottom:8px">
+    <input type="text" id="pointLabel" list="pointList" placeholder="点位标签，如 A1 原位" data-i18n-placeholder="pointPlaceholder">
+    <datalist id="pointList">
+      <option value="A1 原位"></option>
+      <option value="A2 换朝向"></option>
+      <option value="A3 抬高1m"></option>
+      <option value="B1 邻树"></option>
+      <option value="OPEN 开阔参照"></option>
+    </datalist>
+    <button id="btnSave" data-i18n="save">保存当前读数</button>
+  </div>
+  <div id="recordsWrap"></div>
+  <div class="row" style="margin-top:8px">
+    <button id="btnExport" class="ghost" data-i18n="exportCsv">导出 CSV</button>
+    <button id="btnClear" class="ghost" data-i18n="clear">清空</button>
+  </div>
+  <div id="compareWrap" style="margin-top:12px"></div>
+</section>
+
+<details class="card">
+  <summary class="muted" data-i18n="logTitle">AT 日志</summary>
+  <div id="log" style="margin-top:8px"></div>
+</details>
+
+<script>
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const WCH_VID = 0x1a86;
+const CH343_PID = 0x55d3;
+const CH341_BAUDBASE_FACTOR = 1532620800;
+const CH341_BAUDBASE_DIVMAX = 3;
+const CH340_INIT = 0xa1;
+const CH340_SET_BAUDRATE = 0x9a;
+const CH340_SET_HANDSHAKE = 0xa4;
+const VENDOR_CLASS = 0xff;
+const MAX_TRANSFER_SIZE = 64;
+function assertTransferOk(result, action) {
+    if (result.status !== "ok") {
+        throw new Error(`CH340 ${action} failed: ${result.status}`);
+    }
+}
+class WebUSBSerialPort {
+    constructor(usbDevice) {
+        this.usbDevice = usbDevice;
+        this.readable = null;
+        this.writable = null;
+        this.interfaceNumber = null;
+        this.endpointIn = null;
+        this.endpointOut = null;
+        this.currentDtr = false;
+        this.currentRts = false;
+        this.controlQueue = Promise.resolve();
+        this.readLoopRunning = false;
+    }
+    static async requestPort() {
+        if (!navigator.usb) {
+            throw new Error("WebUSB is not available in this browser");
+        }
+        const device = await navigator.usb.requestDevice({
+            filters: [{ vendorId: WCH_VID }],
+        });
+        if (device.productId === CH343_PID) {
+            throw new Error("CH343 is a CDC device; use the Web Serial API instead of WebUSBSerialPort");
+        }
+        return new WebUSBSerialPort(device);
+    }
+    getInfo() {
+        return { usbVendorId: this.usbDevice.vendorId, usbProductId: this.usbDevice.productId };
+    }
+    async open(options = {}) {
+        var _a;
+        const baudRate = (_a = options.baudRate) !== null && _a !== void 0 ? _a : 115200;
+        if (this.usbDevice.opened) {
+            await this.close();
+        }
+        await this.usbDevice.open();
+        if (!this.usbDevice.configuration || this.usbDevice.configuration.configurationValue !== 1) {
+            await this.usbDevice.selectConfiguration(1);
+        }
+        this.claimBulkInterface();
+        if (this.interfaceNumber === null || this.endpointIn === null || this.endpointOut === null) {
+            throw new Error("No CH340 vendor bulk IN/OUT interface found");
+        }
+        try {
+            await this.usbDevice.claimInterface(this.interfaceNumber);
+        }
+        catch (error) {
+            throw new Error(`Unable to claim the CH340 USB interface. ${error}`);
+        }
+        await this.vendorOut(CH340_INIT, 0, 0);
+        await this.setBaudRate(baudRate);
+        await this.setSignals({ dataTerminalReady: false, requestToSend: false });
+        this.createStreams();
+    }
+    async setBaudRate(baudRate) {
+        let factor = Math.floor(CH341_BAUDBASE_FACTOR / baudRate);
+        let divisor = CH341_BAUDBASE_DIVMAX;
+        while (factor > 0xfff0 && divisor > 0) {
+            factor >>= 3;
+            divisor--;
+        }
+        if (factor > 0xfff0) {
+            throw new Error(`Baudrate ${baudRate} is not supported by CH340`);
+        }
+        factor = 0x10000 - factor;
+        const a = (factor & 0xff00) | divisor;
+        const b = factor & 0xff;
+        await this.vendorOut(CH340_SET_BAUDRATE, 0x1312, a);
+        await this.vendorOut(CH340_SET_BAUDRATE, 0x0f2c, b);
+        await sleep(50);
+    }
+    async setSignals(signals) {
+        if (signals.dataTerminalReady !== undefined) {
+            this.currentDtr = signals.dataTerminalReady;
+        }
+        if (signals.requestToSend !== undefined) {
+            this.currentRts = signals.requestToSend;
+        }
+        const value = ~((this.currentDtr ? 1 << 5 : 0) | (this.currentRts ? 1 << 6 : 0)) & 0xffff;
+        await this.vendorOut(CH340_SET_HANDSHAKE, value, 0);
+    }
+    async close() {
+        this.readLoopRunning = false;
+        this.readable = null;
+        this.writable = null;
+        if (this.usbDevice.opened) {
+            if (this.interfaceNumber !== null) {
+                try {
+                    await this.usbDevice.releaseInterface(this.interfaceNumber);
+                }
+                catch {
+                }
+            }
+            await this.usbDevice.close();
+        }
+        this.interfaceNumber = null;
+        this.endpointIn = null;
+        this.endpointOut = null;
+    }
+    asSerialPort() {
+        return this;
+    }
+    claimBulkInterface() {
+        const config = this.usbDevice.configuration;
+        if (!config) {
+            throw new Error("USB device has no configuration");
+        }
+        for (const iface of config.interfaces) {
+            for (const alternate of iface.alternates) {
+                if (alternate.interfaceClass !== VENDOR_CLASS) {
+                    continue;
+                }
+                let inEndpoint = null;
+                let outEndpoint = null;
+                for (const endpoint of alternate.endpoints) {
+                    if (endpoint.type === "bulk" && endpoint.direction === "in") {
+                        inEndpoint = endpoint.endpointNumber;
+                    }
+                    else if (endpoint.type === "bulk" && endpoint.direction === "out") {
+                        outEndpoint = endpoint.endpointNumber;
+                    }
+                }
+                if (inEndpoint !== null && outEndpoint !== null) {
+                    this.interfaceNumber = iface.interfaceNumber;
+                    this.endpointIn = inEndpoint;
+                    this.endpointOut = outEndpoint;
+                    return;
+                }
+            }
+        }
+    }
+    async vendorOut(request, value, index) {
+        const run = this.controlQueue.then(async () => {
+            if (!this.usbDevice.opened) {
+                throw new Error("CH340 device is not open");
+            }
+            const result = await this.usbDevice.controlTransferOut({
+                requestType: "vendor",
+                recipient: "device",
+                request,
+                value,
+                index,
+            });
+            assertTransferOk(result, `control request 0x${request.toString(16)}`);
+        });
+        this.controlQueue = run.then(() => undefined, () => undefined);
+        await run;
+    }
+    createStreams() {
+        const endpointIn = this.endpointIn;
+        const endpointOut = this.endpointOut;
+        if (endpointIn === null || endpointOut === null) {
+            throw new Error("CH340 bulk endpoints are not configured");
+        }
+        this.readLoopRunning = true;
+        this.readable = new ReadableStream({
+            pull: async (controller) => {
+                while (this.readLoopRunning && this.usbDevice.opened) {
+                    try {
+                        const result = await this.usbDevice.transferIn(endpointIn, MAX_TRANSFER_SIZE);
+                        if (result.status === "stall") {
+                            await this.usbDevice.clearHalt("in", endpointIn);
+                            continue;
+                        }
+                        if (result.status === "ok" && result.data && result.data.byteLength > 0) {
+                            controller.enqueue(new Uint8Array(result.data.buffer, result.data.byteOffset, result.data.byteLength));
+                            return;
+                        }
+                    }
+                    catch (error) {
+                        if (!this.readLoopRunning || !this.usbDevice.opened) {
+                            return;
+                        }
+                        throw error;
+                    }
+                }
+            },
+            cancel: () => {
+                this.readLoopRunning = false;
+            },
+        });
+        this.writable = new WritableStream({
+            write: async (chunk) => {
+                if (!this.usbDevice.opened) {
+                    throw new Error("CH340 device is not open");
+                }
+                const result = await this.usbDevice.transferOut(endpointOut, chunk);
+                assertTransferOk(result, "bulk OUT");
+            },
+        });
+    }
+}
+
+const CdcPolyfill = (function () {
+  var exports = {};
+/*
+ * Copyright 2019 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in
+ * compliance with the License. You may obtain a copy of
+ * the License at
+ *
+ *    https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in
+ * writing, software distributed under the License is
+ * distributed on an "AS IS" BASIS, WITHOUT WARRANTIES
+ * OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing
+ * permissions and limitations under the License.
+ */
+'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.serial = exports.SerialPort = exports.SerialPolyfillProtocol = void 0;
+var SerialPolyfillProtocol;
+(function (SerialPolyfillProtocol) {
+    SerialPolyfillProtocol[SerialPolyfillProtocol["UsbCdcAcm"] = 0] = "UsbCdcAcm";
+})(SerialPolyfillProtocol = exports.SerialPolyfillProtocol || (exports.SerialPolyfillProtocol = {}));
+const kSetLineCoding = 0x20;
+const kSetControlLineState = 0x22;
+const kSendBreak = 0x23;
+const kDefaultBufferSize = 255;
+const kDefaultDataBits = 8;
+const kDefaultParity = 'none';
+const kDefaultStopBits = 1;
+const kAcceptableDataBits = [16, 8, 7, 6, 5];
+const kAcceptableStopBits = [1, 2];
+const kAcceptableParity = ['none', 'even', 'odd'];
+const kParityIndexMapping = ['none', 'odd', 'even'];
+const kStopBitsIndexMapping = [1, 1.5, 2];
+const kDefaultPolyfillOptions = {
+    protocol: SerialPolyfillProtocol.UsbCdcAcm,
+    usbControlInterfaceClass: 2,
+    usbTransferInterfaceClass: 10,
+};
+/**
+ * Utility function to get the interface implementing a desired class.
+ * @param {USBDevice} device The USB device.
+ * @param {number} classCode The desired interface class.
+ * @return {USBInterface} The first interface found that implements the desired
+ * class.
+ * @throws TypeError if no interface is found.
+ */
+function findInterface(device, classCode) {
+    const configuration = device.configurations[0];
+    for (const iface of configuration.interfaces) {
+        const alternate = iface.alternates[0];
+        if (alternate.interfaceClass === classCode) {
+            return iface;
+        }
+    }
+    throw new TypeError(`Unable to find interface with class ${classCode}.`);
+}
+/**
+ * Utility function to get an endpoint with a particular direction.
+ * @param {USBInterface} iface The interface to search.
+ * @param {USBDirection} direction The desired transfer direction.
+ * @return {USBEndpoint} The first endpoint with the desired transfer direction.
+ * @throws TypeError if no endpoint is found.
+ */
+function findEndpoint(iface, direction) {
+    const alternate = iface.alternates[0];
+    for (const endpoint of alternate.endpoints) {
+        if (endpoint.direction == direction) {
+            return endpoint;
+        }
+    }
+    throw new TypeError(`Interface ${iface.interfaceNumber} does not have an ` +
+        `${direction} endpoint.`);
+}
+/**
+ * Implementation of the underlying source API[1] which reads data from a USB
+ * endpoint. This can be used to construct a ReadableStream.
+ *
+ * [1]: https://streams.spec.whatwg.org/#underlying-source-api
+ */
+class UsbEndpointUnderlyingSource {
+    /**
+     * Constructs a new UnderlyingSource that will pull data from the specified
+     * endpoint on the given USB device.
+     *
+     * @param {USBDevice} device
+     * @param {USBEndpoint} endpoint
+     * @param {function} onError function to be called on error
+     */
+    constructor(device, endpoint, onError) {
+        this.device_ = device;
+        this.endpoint_ = endpoint;
+        this.onError_ = onError;
+    }
+    /**
+     * Reads a chunk of data from the device.
+     *
+     * @param {ReadableStreamDefaultController} controller
+     */
+    pull(controller) {
+        const chunkSize = controller.desiredSize || 64;
+        this.device_.transferIn(this.endpoint_.endpointNumber, chunkSize).then((result) => {
+            controller.enqueue(result.data);
+        }, (error) => {
+            controller.error(error.toString());
+            this.onError_();
+        });
+    }
+}
+/**
+ * Implementation of the underlying sink API[2] which writes data to a USB
+ * endpoint. This can be used to construct a WritableStream.
+ *
+ * [2]: https://streams.spec.whatwg.org/#underlying-sink-api
+ */
+class UsbEndpointUnderlyingSink {
+    /**
+     * Constructs a new UnderlyingSink that will write data to the specified
+     * endpoint on the given USB device.
+     *
+     * @param {USBDevice} device
+     * @param {USBEndpoint} endpoint
+     * @param {function} onError function to be called on error
+     */
+    constructor(device, endpoint, onError) {
+        this.device_ = device;
+        this.endpoint_ = endpoint;
+        this.onError_ = onError;
+    }
+    /**
+     * Writes a chunk to the device.
+     *
+     * @param {Uint8Array} chunk
+     * @param {WritableStreamDefaultController} controller
+     */
+    async write(chunk, controller) {
+        try {
+            const result = await this.device_.transferOut(this.endpoint_.endpointNumber, chunk);
+            if (result.status != 'ok') {
+                controller.error(result.status);
+                this.onError_();
+            }
+        }
+        catch (error) {
+            controller.error(error.toString());
+            this.onError_();
+        }
+    }
+}
+/** a class used to control serial devices over WebUSB */
+class SerialPort {
+    /**
+     * constructor taking a WebUSB device that creates a SerialPort instance.
+     * @param {USBDevice} device A device acquired from the WebUSB API
+     * @param {SerialPolyfillOptions} polyfillOptions Optional options to
+     * configure the polyfill.
+     */
+    constructor(device, polyfillOptions) {
+        this.polyfillOptions_ = Object.assign(Object.assign({}, kDefaultPolyfillOptions), polyfillOptions);
+        this.outputSignals_ = {
+            dataTerminalReady: false,
+            requestToSend: false,
+            break: false,
+        };
+        this.device_ = device;
+        this.controlInterface_ = findInterface(this.device_, this.polyfillOptions_.usbControlInterfaceClass);
+        this.transferInterface_ = findInterface(this.device_, this.polyfillOptions_.usbTransferInterfaceClass);
+        this.inEndpoint_ = findEndpoint(this.transferInterface_, 'in');
+        this.outEndpoint_ = findEndpoint(this.transferInterface_, 'out');
+    }
+    /**
+     * Getter for the readable attribute. Constructs a new ReadableStream as
+     * necessary.
+     * @return {ReadableStream} the current readable stream
+     */
+    get readable() {
+        var _a;
+        if (!this.readable_ && this.device_.opened) {
+            this.readable_ = new ReadableStream(new UsbEndpointUnderlyingSource(this.device_, this.inEndpoint_, () => {
+                this.readable_ = null;
+            }), new ByteLengthQueuingStrategy({
+                highWaterMark: (_a = this.serialOptions_.bufferSize) !== null && _a !== void 0 ? _a : kDefaultBufferSize,
+            }));
+        }
+        return this.readable_;
+    }
+    /**
+     * Getter for the writable attribute. Constructs a new WritableStream as
+     * necessary.
+     * @return {WritableStream} the current writable stream
+     */
+    get writable() {
+        var _a;
+        if (!this.writable_ && this.device_.opened) {
+            this.writable_ = new WritableStream(new UsbEndpointUnderlyingSink(this.device_, this.outEndpoint_, () => {
+                this.writable_ = null;
+            }), new ByteLengthQueuingStrategy({
+                highWaterMark: (_a = this.serialOptions_.bufferSize) !== null && _a !== void 0 ? _a : kDefaultBufferSize,
+            }));
+        }
+        return this.writable_;
+    }
+    /**
+     * a function that opens the device and claims all interfaces needed to
+     * control and communicate to and from the serial device
+     * @param {SerialOptions} options Object containing serial options
+     * @return {Promise<void>} A promise that will resolve when device is ready
+     * for communication
+     */
+    async open(options) {
+        this.serialOptions_ = options;
+        this.validateOptions();
+        try {
+            await this.device_.open();
+            if (this.device_.configuration === null) {
+                await this.device_.selectConfiguration(1);
+            }
+            await this.device_.claimInterface(this.controlInterface_.interfaceNumber);
+            if (this.controlInterface_ !== this.transferInterface_) {
+                await this.device_.claimInterface(this.transferInterface_.interfaceNumber);
+            }
+            await this.setLineCoding();
+            await this.setSignals({ dataTerminalReady: true });
+        }
+        catch (error) {
+            if (this.device_.opened) {
+                await this.device_.close();
+            }
+            throw new Error('Error setting up device: ' + error.toString());
+        }
+    }
+    /**
+     * Closes the port.
+     *
+     * @return {Promise<void>} A promise that will resolve when the port is
+     * closed.
+     */
+    async close() {
+        const promises = [];
+        if (this.readable_) {
+            promises.push(this.readable_.cancel());
+        }
+        if (this.writable_) {
+            promises.push(this.writable_.abort());
+        }
+        await Promise.all(promises);
+        this.readable_ = null;
+        this.writable_ = null;
+        if (this.device_.opened) {
+            await this.setSignals({ dataTerminalReady: false, requestToSend: false });
+            await this.device_.close();
+        }
+    }
+    /**
+     * A function that returns properties of the device.
+     * @return {SerialPortInfo} Device properties.
+     */
+    getInfo() {
+        return {
+            usbVendorId: this.device_.vendorId,
+            usbProductId: this.device_.productId,
+        };
+    }
+    /**
+     * A function used to change the serial settings of the device
+     * @param {object} options the object which carries serial settings data
+     * @return {Promise<void>} A promise that will resolve when the options are
+     * set
+     */
+    reconfigure(options) {
+        this.serialOptions_ = Object.assign(Object.assign({}, this.serialOptions_), options);
+        this.validateOptions();
+        return this.setLineCoding();
+    }
+    /**
+     * Sets control signal state for the port.
+     * @param {SerialOutputSignals} signals The signals to enable or disable.
+     * @return {Promise<void>} a promise that is resolved when the signal state
+     * has been changed.
+     */
+    async setSignals(signals) {
+        this.outputSignals_ = Object.assign(Object.assign({}, this.outputSignals_), signals);
+        if (signals.dataTerminalReady !== undefined ||
+            signals.requestToSend !== undefined) {
+            // The Set_Control_Line_State command expects a bitmap containing the
+            // values of all output signals that should be enabled or disabled.
+            //
+            // Ref: USB CDC specification version 1.1 §6.2.14.
+            const value = (this.outputSignals_.dataTerminalReady ? 1 << 0 : 0) |
+                (this.outputSignals_.requestToSend ? 1 << 1 : 0);
+            await this.device_.controlTransferOut({
+                'requestType': 'class',
+                'recipient': 'interface',
+                'request': kSetControlLineState,
+                'value': value,
+                'index': this.controlInterface_.interfaceNumber,
+            });
+        }
+        if (signals.break !== undefined) {
+            // The SendBreak command expects to be given a duration for how long the
+            // break signal should be asserted. Passing 0xFFFF enables the signal
+            // until 0x0000 is send.
+            //
+            // Ref: USB CDC specification version 1.1 §6.2.15.
+            const value = this.outputSignals_.break ? 0xFFFF : 0x0000;
+            await this.device_.controlTransferOut({
+                'requestType': 'class',
+                'recipient': 'interface',
+                'request': kSendBreak,
+                'value': value,
+                'index': this.controlInterface_.interfaceNumber,
+            });
+        }
+    }
+    /**
+     * Checks the serial options for validity and throws an error if it is
+     * not valid
+     */
+    validateOptions() {
+        if (!this.isValidBaudRate(this.serialOptions_.baudRate)) {
+            throw new RangeError('invalid Baud Rate ' + this.serialOptions_.baudRate);
+        }
+        if (!this.isValidDataBits(this.serialOptions_.dataBits)) {
+            throw new RangeError('invalid dataBits ' + this.serialOptions_.dataBits);
+        }
+        if (!this.isValidStopBits(this.serialOptions_.stopBits)) {
+            throw new RangeError('invalid stopBits ' + this.serialOptions_.stopBits);
+        }
+        if (!this.isValidParity(this.serialOptions_.parity)) {
+            throw new RangeError('invalid parity ' + this.serialOptions_.parity);
+        }
+    }
+    /**
+     * Checks the baud rate for validity
+     * @param {number} baudRate the baud rate to check
+     * @return {boolean} A boolean that reflects whether the baud rate is valid
+     */
+    isValidBaudRate(baudRate) {
+        return baudRate % 1 === 0;
+    }
+    /**
+     * Checks the data bits for validity
+     * @param {number} dataBits the data bits to check
+     * @return {boolean} A boolean that reflects whether the data bits setting is
+     * valid
+     */
+    isValidDataBits(dataBits) {
+        if (typeof dataBits === 'undefined') {
+            return true;
+        }
+        return kAcceptableDataBits.includes(dataBits);
+    }
+    /**
+     * Checks the stop bits for validity
+     * @param {number} stopBits the stop bits to check
+     * @return {boolean} A boolean that reflects whether the stop bits setting is
+     * valid
+     */
+    isValidStopBits(stopBits) {
+        if (typeof stopBits === 'undefined') {
+            return true;
+        }
+        return kAcceptableStopBits.includes(stopBits);
+    }
+    /**
+     * Checks the parity for validity
+     * @param {string} parity the parity to check
+     * @return {boolean} A boolean that reflects whether the parity is valid
+     */
+    isValidParity(parity) {
+        if (typeof parity === 'undefined') {
+            return true;
+        }
+        return kAcceptableParity.includes(parity);
+    }
+    /**
+     * sends the options alog the control interface to set them on the device
+     * @return {Promise} a promise that will resolve when the options are set
+     */
+    async setLineCoding() {
+        var _a, _b, _c;
+        // Ref: USB CDC specification version 1.1 §6.2.12.
+        const buffer = new ArrayBuffer(7);
+        const view = new DataView(buffer);
+        view.setUint32(0, this.serialOptions_.baudRate, true);
+        view.setUint8(4, kStopBitsIndexMapping.indexOf((_a = this.serialOptions_.stopBits) !== null && _a !== void 0 ? _a : kDefaultStopBits));
+        view.setUint8(5, kParityIndexMapping.indexOf((_b = this.serialOptions_.parity) !== null && _b !== void 0 ? _b : kDefaultParity));
+        view.setUint8(6, (_c = this.serialOptions_.dataBits) !== null && _c !== void 0 ? _c : kDefaultDataBits);
+        const result = await this.device_.controlTransferOut({
+            'requestType': 'class',
+            'recipient': 'interface',
+            'request': kSetLineCoding,
+            'value': 0x00,
+            'index': this.controlInterface_.interfaceNumber,
+        }, buffer);
+        if (result.status != 'ok') {
+            throw new DOMException('NetworkError', 'Failed to set line coding.');
+        }
+    }
+}
+exports.SerialPort = SerialPort;
+/** implementation of the global navigator.serial object */
+class Serial {
+    /**
+     * Requests permission to access a new port.
+     *
+     * @param {SerialPortRequestOptions} options
+     * @param {SerialPolyfillOptions} polyfillOptions
+     * @return {Promise<SerialPort>}
+     */
+    async requestPort(options, polyfillOptions) {
+        polyfillOptions = Object.assign(Object.assign({}, kDefaultPolyfillOptions), polyfillOptions);
+        const usbFilters = [];
+        if (options && options.filters) {
+            for (const filter of options.filters) {
+                const usbFilter = {
+                    classCode: polyfillOptions.usbControlInterfaceClass,
+                };
+                if (filter.usbVendorId !== undefined) {
+                    usbFilter.vendorId = filter.usbVendorId;
+                }
+                if (filter.usbProductId !== undefined) {
+                    usbFilter.productId = filter.usbProductId;
+                }
+                usbFilters.push(usbFilter);
+            }
+        }
+        if (usbFilters.length === 0) {
+            usbFilters.push({
+                classCode: polyfillOptions.usbControlInterfaceClass,
+            });
+        }
+        const device = await navigator.usb.requestDevice({ 'filters': usbFilters });
+        const port = new SerialPort(device, polyfillOptions);
+        return port;
+    }
+    /**
+     * Get the set of currently available ports.
+     *
+     * @param {SerialPolyfillOptions} polyfillOptions Polyfill configuration that
+     * should be applied to these ports.
+     * @return {Promise<SerialPort[]>} a promise that is resolved with a list of
+     * ports.
+     */
+    async getPorts(polyfillOptions) {
+        polyfillOptions = Object.assign(Object.assign({}, kDefaultPolyfillOptions), polyfillOptions);
+        const devices = await navigator.usb.getDevices();
+        const ports = [];
+        devices.forEach((device) => {
+            try {
+                const port = new SerialPort(device, polyfillOptions);
+                ports.push(port);
+            }
+            catch (e) {
+                // Skip unrecognized port.
+            }
+        });
+        return ports;
+    }
+}
+/* an object to be used for starting the serial workflow */
+exports.serial = new Serial();
+//# sourceMappingURL=serial.js.map
+  return exports;
+})();
+
+/* ================= i18n ================= */
+const I18N = {
+  title: { zh: "NB-IoT 信号测试", en: "NB-IoT Signal Test" },
+  connect: { zh: "连接设备", en: "Connect" },
+  disconnect: { zh: "断开", en: "Disconnect" },
+  notConnected: { zh: "未连接", en: "Not connected" },
+  connectedAs: { zh: "已连接", en: "Connected" },
+  connectHint: { zh: "需要 HTTPS 页面、测试棒已插好、厚德 App 已完全关闭。", en: "Requires HTTPS, dongle plugged in, vendor App fully closed." },
+  tabSimple: { zh: "客户视图", en: "Simple" },
+  tabAdvanced: { zh: "高级数据", en: "Advanced" },
+  noData: { zh: "等待连接", en: "Waiting for connection" },
+  metrics: { zh: "当前读数", en: "Current readings" },
+  refresh: { zh: "刷新一次", en: "Refresh" },
+  autoPoll: { zh: "自动刷新（5 秒）", en: "Auto refresh (5 s)" },
+  records: { zh: "点位记录", en: "Site records" },
+  pointPlaceholder: { zh: "点位标签，如 A1 原位", en: "Site label, e.g. A1 original" },
+  save: { zh: "保存当前读数", en: "Save current reading" },
+  exportCsv: { zh: "导出 CSV", en: "Export CSV" },
+  clear: { zh: "清空", en: "Clear" },
+  logTitle: { zh: "AT 日志", en: "AT log" },
+  lvl1: { zh: "覆盖非常好", en: "Excellent coverage" },
+  lvl2: { zh: "覆盖好", en: "Good coverage" },
+  lvl3: { zh: "覆盖较好", en: "Fair coverage" },
+  lvl4: { zh: "覆盖一般", en: "Marginal coverage" },
+  lvl5: { zh: "覆盖差", en: "Poor coverage" },
+  lvl6: { zh: "覆盖较差", en: "Very poor coverage" },
+  adv1: { zh: "信号很好，可以正常安装。", en: "Signal is strong; installation is fine." },
+  adv2: { zh: "信号良好，可以正常安装。", en: "Signal is good; installation is fine." },
+  adv3: { zh: "信号够用，室内外都能连接。", en: "Signal is fair; connects indoors and outdoors." },
+  adv4: { zh: "信号一般，室内连接成功率低，建议靠近窗口或抬高天线。", en: "Marginal signal. Indoor success rate is low; move closer to a window or raise the antenna." },
+  adv5: { zh: "信号差，室内难以连接，建议换朝向、抬高 1 米或移出遮挡。", en: "Poor signal. Indoor connection is difficult; change orientation, raise by 1 m, or move clear of obstructions." },
+  adv6: { zh: "信号较差，业务基本无法连接，建议更换点位。", en: "Very poor signal. Service is unlikely to work; choose another location." },
+  noSignal: { zh: "无信号（CSQ 99）", en: "No signal (CSQ 99)" },
+  updated: { zh: "更新于", en: "Updated" },
+  noRecords: { zh: "还没有记录。连接后填好点位标签再点保存。", en: "No records yet. Connect, enter a site label, then save." },
+  colTime: { zh: "时间", en: "Time" },
+  colPoint: { zh: "点位", en: "Site" },
+  colRsrp: { zh: "RSRP", en: "RSRP" },
+  colGrade: { zh: "等级", en: "Level" },
+  colCsq: { zh: "CSQ", en: "CSQ" },
+  colEcl: { zh: "ECL", en: "ECL" },
+  colPci: { zh: "PCI", en: "PCI" },
+  colBand: { zh: "频段", en: "Band" },
+  del: { zh: "删除", en: "Del" },
+  compare: { zh: "两点位对比", en: "Compare two sites" },
+  cmpA: { zh: "基线", en: "Base" },
+  cmpB: { zh: "对比", en: "Compare" },
+  rsrpDiff: { zh: "RSRP 差", en: "RSRP diff" },
+  csqGain: { zh: "CSQ 改善", en: "CSQ gain" },
+  pciSame: { zh: "PCI 相同（同一小区）", en: "same PCI (same cell)" },
+  pciDiff: { zh: "PCI 不同（不同小区）", en: "different PCI (different cell)" },
+  judgeRsrp: { zh: "判据一（RSRP 差 > 6 dB）", en: "Rule 1 (RSRP diff > 6 dB)" },
+  judgeCsq: { zh: "判据二（CSQ 改善 ≥ 3）", en: "Rule 2 (CSQ gain ≥ 3)" },
+  judgePci: { zh: "判据三（PCI 对比）", en: "Rule 3 (PCI comparison)" },
+  pass: { zh: "成立", en: "triggered" },
+  fail: { zh: "不成立", en: "not triggered" },
+  cleared: { zh: "已清空记录", en: "Records cleared" },
+  saved: { zh: "已保存", en: "Saved" },
+  needLabel: { zh: "请先填点位标签", en: "Enter a site label first" },
+  noReading: { zh: "还没有读数，先点“刷新一次”", en: "No reading yet; press Refresh" },
+  connectFail: { zh: "连接失败", en: "Connection failed" },
+  connectedOk: { zh: "已连接，开始读数", en: "Connected; reading" },
+  busy: { zh: "接口被占用：请彻底关闭厚德 App 后拔插一次", en: "Interface busy: fully close the vendor App, then replug" },
+  cancelled: { zh: "未选择设备", en: "No device selected" },
+  notSecure: { zh: "页面必须在 HTTPS 下打开", en: "Page must be served over HTTPS" },
+  disconnected: { zh: "已断开", en: "Disconnected" },
+  confirmClear: { zh: "确定清空全部记录？", en: "Clear all records?" }
+};
+
+let lang = localStorage.getItem("nbtest.lang") || "zh";
+function t(key) {
+  const item = I18N[key];
+  if (!item) return key;
+  return item[lang] || item.zh || key;
+}
+function applyI18n() {
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+  document.getElementById("langBtn").textContent = lang === "zh" ? "EN" : "中文";
+  renderAll();
+}
+
+/* ================= 状态 ================= */
+const $ = (id) => document.getElementById(id);
+const state = {
+  port: null, writer: null, reader: null, connected: false,
+  reading: null, view: "simple", pollTimer: null,
+  records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
+};
+let lineBuf = "";
+let lineWaiter = null;
+
+function log(text, cls) {
+  const el = $("log");
+  const span = document.createElement("span");
+  span.textContent = `[${new Date().toTimeString().slice(0, 8)}] ${text}\n`;
+  if (cls === "tx") span.style.color = "#ffd54f";
+  if (cls === "sys") span.style.color = "#90a4ae";
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ================= 命令队列 ================= */
+let queue = Promise.resolve();
+function enqueue(text, timeoutMs) {
+  const run = queue.then(() => runCmd(text, timeoutMs || 2500));
+  queue = run.catch(() => null);
+  return run;
+}
+async function runCmd(text, timeoutMs) {
+  if (!state.port || !state.writer) return null;
+  log("→ " + text, "tx");
+  await state.writer.write(new TextEncoder().encode(text + "\r\n"));
+  const lines = [];
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const left = deadline - Date.now();
+    if (left <= 0) break;
+    const line = await new Promise((res) => {
+      lineWaiter = res;
+      setTimeout(() => { if (lineWaiter === res) { lineWaiter = null; res(null); } }, left);
+    });
+    if (line === null) break;
+    lines.push(line);
+    if (/^(OK|ERROR|\+CME ERROR)/i.test(line)) break;
+  }
+  return lines;
+}
+
+/* ================= 连接 ================= */
+function explainError(e) {
+  const m = (e && e.message) || String(e);
+  if (e && e.name === "NotFoundError") return t("cancelled");
+  if (e && e.name === "SecurityError") return t("notSecure");
+  if (/claim|busy|占用/i.test(m)) return t("busy");
+  return m;
+}
+
+async function connect() {
+  try {
+    if (!window.isSecureContext) throw new Error(t("notSecure"));
+    if (!navigator.usb) throw new Error("WebUSB unavailable");
+    $("connStatus").textContent = t("connect");
+    const device = await navigator.usb.requestDevice({ filters: [{ vendorId: 0x1a86 }] });
+    let port;
+    const hasVendor = (device.configurations[0] || { interfaces: [] }).interfaces
+      .some((i) => i.alternates.some((a) => a.interfaceClass === 0xff));
+    if (hasVendor) {
+      port = new WebUSBSerialPort(device);
+      await port.open({ baudRate: 9600 });
+    } else {
+      port = new CdcPolyfill.SerialPort(device, {
+        protocol: CdcPolyfill.SerialPolyfillProtocol.UsbCdcAcm,
+        usbControlInterfaceClass: 2,
+        usbTransferInterfaceClass: 10
+      });
+      await port.open({ baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none" });
+    }
+    state.port = port;
+    state.writer = port.writable.getWriter();
+    pipeRead(port);
+    state.connected = true;
+    $("btnDisconnect").disabled = false;
+    $("btnConnect").disabled = true;
+    $("connStatus").textContent = t("connectedOk");
+    log("connected", "sys");
+    schedulePoll();
+    await refresh();
+  } catch (e) {
+    state.connected = false;
+    $("connStatus").textContent = t("connectFail") + ": " + explainError(e);
+    log(explainError(e), "sys");
+  }
+}
+
+function pipeRead(port) {
+  (async () => {
+    state.reader = port.readable.getReader();
+    const dec = new TextDecoder();
+    try {
+      for (;;) {
+        const { value, done } = await state.reader.read();
+        if (done) break;
+        const s = dec.decode(value, { stream: true });
+        for (const ch of s) {
+          if (ch === "\n" || ch === "\r") {
+            if (lineBuf) {
+              const line = lineBuf;
+              lineBuf = "";
+              log("← " + line);
+              if (lineWaiter) { const w = lineWaiter; lineWaiter = null; w(line); }
+            }
+          } else lineBuf += ch;
+        }
+      }
+    } catch (e) {
+      log("read stopped: " + explainError(e), "sys");
+      onDisconnected();
+    }
+  })();
+}
+
+function onDisconnected() {
+  state.connected = false;
+  state.port = state.writer = state.reader = null;
+  $("btnDisconnect").disabled = true;
+  $("btnConnect").disabled = false;
+  $("connStatus").textContent = t("disconnected");
+  if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+}
+
+async function disconnect() {
+  try { if (state.reader) await state.reader.cancel(); } catch (e) {}
+  try { if (state.writer) state.writer.releaseLock(); } catch (e) {}
+  try { if (state.port) await state.port.close(); } catch (e) {}
+  onDisconnected();
+}
+
+function schedulePoll() {
+  if (state.pollTimer) clearInterval(state.pollTimer);
+  state.pollTimer = setInterval(() => { if ($("autoPoll").checked && state.connected) refresh(); }, 5000);
+}
+
+/* ================= 读数 ================= */
+function parseNuestats(lines) {
+  const m = {};
+  for (const l of lines) {
+    let r;
+    if ((r = /Signal power:\s*(-?\d+)/i.exec(l))) m.rsrp = +r[1] / 10;
+    else if ((r = /Total power:\s*(-?\d+)/i.exec(l))) m.rssi = +r[1] / 10;
+    else if ((r = /RSRQ:\s*(-?\d+)/i.exec(l))) m.rsrq = +r[1] / 10;
+    else if ((r = /SNR:\s*(-?\d+)/i.exec(l))) m.snr = +r[1] / 10;
+    else if ((r = /ECL:\s*(-?\d+)/i.exec(l))) m.ecl = +r[1];
+    else if ((r = /EARFCN:\s*(-?\d+)/i.exec(l))) m.earfcn = +r[1];
+    else if ((r = /PCI:\s*(-?\d+)/i.exec(l))) m.pci = +r[1];
+    else if ((r = /Cell ID:\s*(-?\d+)/i.exec(l))) m.cellId = +r[1];
+    else if ((r = /CURRENT BAND:\s*(-?\d+)/i.exec(l))) m.band = +r[1];
+  }
+  return m;
+}
+
+function gradeOf(rsrp) {
+  if (rsrp === null || rsrp === undefined || isNaN(rsrp)) return null;
+  if (rsrp > -65) return 1;
+  if (rsrp > -75) return 2;
+  if (rsrp > -85) return 3;
+  if (rsrp > -95) return 4;
+  if (rsrp > -105) return 5;
+  return 6;
+}
+
+async function refresh() {
+  if (!state.connected) return;
+  const csqLines = await enqueue("AT+CSQ", 2500);
+  const nsLines = await enqueue("AT+NUESTATS", 5000);
+  if (!csqLines || !nsLines) return;
+  const csqMatch = csqLines.map((l) => /\+CSQ:\s*(\d+)/.exec(l)).find(Boolean);
+  const ns = parseNuestats(nsLines);
+  ns.csq = csqMatch ? +csqMatch[1] : null;
+  ns.grade = gradeOf(ns.rsrp);
+  ns.at = new Date().toISOString();
+  state.reading = ns;
+  renderAll();
+}
+
+/* ================= 渲染 ================= */
+function fmt(v, digits) {
+  if (v === null || v === undefined || isNaN(v)) return "--";
+  return digits === undefined ? String(v) : v.toFixed(digits);
+}
+
+function renderAll() {
+  const r = state.reading || {};
+  const g = r.grade || null;
+  const card = $("signalCard");
+  card.className = "card signal" + (g ? " g" + g : "");
+  $("gradeNum").textContent = g ? String(g) : "–";
+  $("gradeLvl").textContent = g ? t("lvl" + g) : t("noData");
+  $("rsrpVal").textContent = fmt(r.rsrp, 1);
+  $("advice").textContent = g ? t("adv" + g) : "";
+  const csqTxt = r.csq === null || r.csq === undefined ? "" : (r.csq === 99 ? t("noSignal") : "CSQ " + r.csq);
+  $("simpleMeta").textContent = [csqTxt, r.band ? "B" + r.band : "", r.at ? t("updated") + " " + new Date(r.at).toTimeString().slice(0, 8) : ""]
+    .filter(Boolean).join(" · ");
+
+  $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
+  $("mRsrq").textContent = fmt(r.rsrq, 1) + " dB";
+  $("mRssi").textContent = fmt(r.rssi, 1) + " dBm";
+  $("mSnr").textContent = fmt(r.snr, 1) + " dB";
+  $("mCsq").textContent = fmt(r.csq);
+  $("mEcl").textContent = fmt(r.ecl);
+  $("mEarfcn").textContent = fmt(r.earfcn);
+  $("mPci").textContent = fmt(r.pci);
+  $("mBand").textContent = r.band ? "B" + r.band : "--";
+  $("mCell").textContent = fmt(r.cellId);
+
+  renderRecords();
+}
+
+function renderRecords() {
+  const wrap = $("recordsWrap");
+  const recs = state.records;
+  if (!recs.length) {
+    wrap.innerHTML = `<div class="muted">${t("noRecords")}</div>`;
+    $("compareWrap").innerHTML = "";
+    return;
+  }
+  let html = "<table><tr><th>" + t("colTime") + "</th><th>" + t("colPoint") + "</th><th>" + t("colRsrp") +
+    "</th><th>" + t("colGrade") + "</th><th>" + t("colCsq") + "</th><th>" + t("colEcl") + "</th><th>" +
+    t("colPci") + "</th><th>" + t("colBand") + "</th><th></th></tr>";
+  recs.forEach((x) => {
+    html += `<tr><td>${new Date(x.at).toLocaleTimeString()}</td><td>${escapeHtml(x.label)}</td>` +
+      `<td class="v">${fmt(x.rsrp, 1)}</td><td>${x.grade ?? "--"}</td><td class="v">${fmt(x.csq)}</td>` +
+      `<td class="v">${fmt(x.ecl)}</td><td class="v">${fmt(x.pci)}</td><td class="v">${x.band ? "B" + x.band : "--"}</td>` +
+      `<td><button class="ghost" style="padding:2px 8px;font-size:.78rem" data-del="${x.id}">${t("del")}</button></td></tr>`;
+  });
+  html += "</table>";
+  wrap.innerHTML = html;
+  wrap.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+    state.records = state.records.filter((x) => String(x.id) !== b.dataset.del);
+    persistRecords();
+    renderRecords();
+  }));
+  renderCompare();
+}
+
+function renderCompare() {
+  const box = $("compareWrap");
+  if (state.records.length < 2) { box.innerHTML = ""; return; }
+  const opts = state.records.map((x) => `<option value="${x.id}">${escapeHtml(x.label)} (${fmt(x.rsrp, 1)} dBm)</option>`).join("");
+  box.innerHTML = `<h2>${t("compare")}</h2><div class="row">` +
+    `<select id="cmpA">${opts}</select><select id="cmpB">${opts}</select></div><div id="cmpOut" style="margin-top:8px"></div>`;
+  $("cmpA").value = state.records[0].id;
+  $("cmpB").value = state.records[state.records.length - 1].id;
+  const run = () => {
+    const a = state.records.find((x) => String(x.id) === $("cmpA").value);
+    const b = state.records.find((x) => String(x.id) === $("cmpB").value);
+    if (!a || !b) return;
+    const dRsrp = Math.abs((b.rsrp ?? 0) - (a.rsrp ?? 0));
+    const dCsq = (b.csq ?? 0) - (a.csq ?? 0);
+    const samePci = a.pci === b.pci;
+    const j1 = dRsrp > 6, j2 = dCsq >= 3;
+    const cls = (ok) => ok ? "ok" : "bad";
+    $("cmpOut").innerHTML =
+      `<div>${t("rsrpDiff")}: <b>${dRsrp.toFixed(1)} dB</b></div>` +
+      `<div>${t("csqGain")}: <b>${dCsq}</b></div>` +
+      `<div>${samePci ? t("pciSame") : t("pciDiff")}</div>` +
+      `<div style="margin-top:6px">${t("judgeRsrp")}: <span class="${cls(j1)}">${j1 ? t("pass") : t("fail")}</span></div>` +
+      `<div>${t("judgeCsq")}: <span class="${cls(j2)}">${j2 ? t("pass") : t("fail")}</span></div>`;
+  };
+  $("cmpA").addEventListener("change", run);
+  $("cmpB").addEventListener("change", run);
+  run();
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/* ================= 记录 ================= */
+function persistRecords() {
+  localStorage.setItem("nbtest.records", JSON.stringify(state.records));
+}
+
+function saveRecord() {
+  const label = $("pointLabel").value.trim();
+  if (!label) { alert(t("needLabel")); return; }
+  if (!state.reading) { alert(t("noReading")); return; }
+  const r = state.reading;
+  state.records.push({
+    id: Date.now(), at: r.at, label,
+    rsrp: r.rsrp, grade: r.grade, csq: r.csq, rsrq: r.rsrq, rssi: r.rssi,
+    snr: r.snr, ecl: r.ecl, earfcn: r.earfcn, pci: r.pci, band: r.band, cellId: r.cellId
+  });
+  persistRecords();
+  renderRecords();
+  log(`${t("saved")}: ${label}`, "sys");
+}
+
+function exportCsv() {
+  const head = [t("colTime"), t("colPoint"), "RSRP(dBm)", t("colGrade"), "CSQ", "RSRQ(dB)", "RSSI(dBm)", "SNR(dB)", "ECL", "EARFCN", "PCI", "Band", "CellID"];
+  const rows = state.records.map((x) => [new Date(x.at).toLocaleString(), x.label, fmt(x.rsrp, 1), x.grade, fmt(x.csq), fmt(x.rsrq, 1), fmt(x.rssi, 1), fmt(x.snr, 1), fmt(x.ecl), fmt(x.earfcn), fmt(x.pci), x.band ? "B" + x.band : "", fmt(x.cellId)]);
+  const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  a.href = URL.createObjectURL(blob);
+  a.download = `nb-signal-${stamp}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ================= 事件 ================= */
+$("btnConnect").addEventListener("click", connect);
+$("btnDisconnect").addEventListener("click", disconnect);
+$("btnRefresh").addEventListener("click", refresh);
+$("btnSave").addEventListener("click", saveRecord);
+$("btnExport").addEventListener("click", exportCsv);
+$("btnClear").addEventListener("click", () => {
+  if (!state.records.length) return;
+  if (confirm(t("confirmClear"))) { state.records = []; persistRecords(); renderRecords(); }
+});
+$("tabSimple").addEventListener("click", () => switchView("simple"));
+$("tabAdvanced").addEventListener("click", () => switchView("advanced"));
+$("langBtn").addEventListener("click", () => {
+  lang = lang === "zh" ? "en" : "zh";
+  localStorage.setItem("nbtest.lang", lang);
+  applyI18n();
+});
+function switchView(v) {
+  state.view = v;
+  $("viewSimple").hidden = v !== "simple";
+  $("viewAdvanced").hidden = v !== "advanced";
+  $("tabSimple").classList.toggle("active", v === "simple");
+  $("tabAdvanced").classList.toggle("active", v === "advanced");
+}
+
+applyI18n();
+log("ready", "sys");
+</script>
 </body>
 </html>
