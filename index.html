@@ -71,14 +71,31 @@
   .signal .lvl { font-size: 1.05rem; font-weight: 700; margin-top: 6px; }
   .signal .big { font-size: 1.9rem; font-weight: 700; margin-top: 12px; }
   .signal .unit { font-size: .85rem; color: var(--muted); font-weight: 400; }
-  /* 数据过期：链路还在但读数不更新 */
-  .signal.stale { filter: grayscale(.9); opacity: .7; }
+  /* 数据过期：链路还在但读数不更新。
+     只淡化读数本身，不能整块 grayscale——否则旁边那条红色的"已过期"也会被洗白 */
+  .signal.stale .num, .signal.stale .big, .signal.stale .lvl { opacity: .45; }
   /* 已断开：虚线灰框，明确区分"没数据"和"信号差" */
   .signal.offline { border-style: dashed; border-color: var(--line); background: #f7f8f8; }
   .signal.offline .num { color: #b9c9c2; }
   .signal.offline .lvl { color: var(--red); }
-  .staleTag { color: var(--red); }
-  .meta { margin-top: 8px; font-size: .82rem; color: var(--muted); }
+  .meta { margin-top: 6px; font-size: .82rem; color: var(--muted); }
+
+  /* 数据年龄条：模组 15s 才更新一次快照，年龄必须比读数更显眼，否则旧数会被当成实时值 */
+  .agebar { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 1.02rem; font-weight: 600; flex-wrap: wrap; }
+  .agebar .adot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--g600); }
+  .agebar .atxt { color: var(--g600); }
+  .agebar .apill { margin-left: auto; font-size: .72rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--g100); color: var(--g600); white-space: nowrap; }
+  .agebar.wait .atxt { color: var(--amber); }
+  .agebar.wait .adot { background: var(--amber); }
+  .agebar.wait .apill { color: var(--amber); background: #fdf3e0; }
+  .agebar.old .atxt { color: var(--red); }
+  .agebar.old .adot { background: var(--red); }
+  .agebar.old .apill { color: var(--red); background: #fbe9e9; }
+  .atrack { margin: 7px auto 0; height: 3px; max-width: 280px; border-radius: 2px; background: var(--g100); overflow: hidden; }
+  .atrack i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--g600); transition: width .4s; }
+  .atrack.wait i { background: var(--amber); }
+  .atrack.old i { background: var(--red); }
+  #saveHint.warn { color: var(--amber); font-weight: 600; }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
   td, th { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
@@ -166,7 +183,11 @@
     <div class="lvl" id="gradeLvl" data-i18n="noData">等待连接</div>
     <div class="big"><span id="rsrpVal">--</span> <span class="unit">dBm</span></div>
 
+    <div class="agebar" id="ageBar" hidden>
+      <span class="adot"></span><span class="atxt" id="ageBig"></span><span class="apill" id="agePill"></span>
+    </div>
     <div class="meta" id="simpleMeta"></div>
+    <div class="atrack" id="ageTrack" hidden><i id="ageFill"></i></div>
   </div>
 </section>
 
@@ -909,7 +930,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.1-alpha";
+const APP_VERSION = "0.7.2-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -950,11 +971,20 @@ const I18N = {
   eclNote: { zh: "ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。", zhHant: "ECL = 覆蓋增強等級：0 最好、1 中等、2 最差（數值越小訊號越強）。", en: "ECL = coverage enhancement level: 0 best, 1 medium, 2 worst (lower is stronger)." },
   noSignal: { zh: "无信号（CSQ 99）", zhHant: "無訊號（CSQ 99）", en: "No signal (CSQ 99)" },
   noReadingShort: { zh: "无有效读数", zhHant: "無數值", en: "No valid reading" },
-  staleData: { zh: "数据已过期", zhHant: "數據已過期", en: "Data stale" },
   offlineTitle: { zh: "设备已断开", zhHant: "裝置已中斷", en: "Device disconnected" },
   chipHint: { zh: "连接设备或查看连接状态", zhHant: "連線裝置或查看連線狀態", en: "Connect a device or view connection status" },
-  updated: { zh: "更新于", zhHant: "更新於", en: "Updated" },
-  justNow: { zh: "刚刚", zhHant: "剛剛", en: "just now" },
+  dataAge: { zh: "数据", zhHant: "數據", en: "Updated" },
+  ageFresh: { zh: "新鲜", zhHant: "新鮮", en: "Fresh" },
+  ageWait: { zh: "等待更新", zhHant: "等待更新", en: "Waiting" },
+  ageOld: { zh: "已过期", zhHant: "已過期", en: "Stale" },
+  autoRefreshing: { zh: "自动刷新中", zhHant: "自動更新中", en: "Auto-refreshing" },
+  autoPaused: { zh: "自动刷新已关", zhHant: "自動更新已關", en: "Auto-refresh off" },
+  saveHintStale: {
+    zh: "⚠ 数据 {age}，建议等刷新后再存",
+    zhHant: "⚠ 數據 {age}，建議等更新後再存",
+    en: "⚠ Data {age} — wait for a refresh before saving",
+  },
+  justNow: { zh: "刚刚更新", zhHant: "剛剛更新", en: "just now" },
   agoSec: { zh: "{n} 秒前", zhHant: "{n} 秒前", en: "{n}s ago" },
   agoMin: { zh: "{n} 分前", zhHant: "{n} 分前", en: "{n}m ago" },
   colTime: { zh: "时间", zhHant: "時間", en: "Time" },
@@ -1000,9 +1030,15 @@ const $ = (id) => document.getElementById(id);
 
 // 链路健康阈值
 const HEARTBEAT_TIMEOUT_MS = 12000;  // 超过这么久没收到任何 AT 响应 → 判定断开
-// 数据新鲜度阈值：模组侧 AT+NUESTATS 快照实测平均 15.3s 才更新一次、最长 22s
-// （2026-11-20 日志，RX time 计数器连续 4 次轮询冻结）。取 30s 留余量，避免误报过期。
-const STALE_MS = 30000;
+// 数据新鲜度三档（依据 2026-11-20 现场日志实测：模组 AT+NUESTATS 快照平均 15.3s
+// 更新一次、最长 22s，RX time 计数器连续 4 次轮询冻结）
+//   ≤10s  绿「新鲜」   —— 这份数大概率还在你脚下
+//   10~24s 黄「等待更新」—— 可能是上一站的残留，等它跳
+//   >24s  红「已过期」  —— 已超过实测最大间隔 22s +2s 余量，别再当真
+// 取 10s 而不是 20s：模组 15s 才刷新一次，20 秒的"新鲜"太宽松，
+// 刚走到新点位时读到的那屏几乎肯定是上一站的。
+const AGE_FRESH_MS = 10000;
+const STALE_MS = 24000;
 const WATCHDOG_INTERVAL_MS = 3000;   // 看门狗检查间隔
 
 const state = {
@@ -1014,7 +1050,8 @@ const state = {
   failCount: 0,        // 连续刷新失败次数
   snapAt: null,        // 当前快照"首次被观测到"的时刻 → 数据年龄的起点
   snapKey: null,       // 快照指纹（RX time）：只有它变了才说明模组给了新数据
-  ageTimer: null,      // "X 秒前"的每秒刷新定时器
+  ageTimer: null,      // 年龄条/保存提示的每秒刷新定时器
+  lastLink: null,      // 上一次的链路状态，用于只在切换时重绘
   watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
@@ -1042,6 +1079,33 @@ function ageText() {
   if (s <= 2) return t("justNow");
   if (s < 60) return t("agoSec").replace("{n}", String(s));
   return t("agoMin").replace("{n}", String(Math.floor(s / 60)));
+}
+
+// 三档新鲜度：fresh（绿）/ wait（黄）/ old（红）
+function ageState() {
+  const age = dataAgeMs();
+  if (age === null || age > STALE_MS) return "old";
+  return age > AGE_FRESH_MS ? "wait" : "fresh";
+}
+
+// 数据年龄条：这是卡片上最该被看见的信息——它决定读数能不能信
+function renderAge() {
+  const bar = $("ageBar"), track = $("ageTrack"), fill = $("ageFill");
+  if (!bar) return;
+  const age = dataAgeMs();
+  const show = state.connected && age !== null;
+  bar.hidden = !show;
+  track.hidden = !show;
+  if (!show) return;
+
+  const st = ageState();
+  bar.className = "agebar " + st;
+  track.className = "atrack " + st;
+  $("ageBig").textContent = t("dataAge") + " " + ageText();
+  $("agePill").textContent = t(st === "old" ? "ageOld" : st === "wait" ? "ageWait" : "ageFresh");
+  fill.style.width = Math.min(100, (age / STALE_MS) * 100).toFixed(0) + "%";
+  // 卡片过期态跟着年龄条走，不然最多要比年龄条晚一个轮询周期（5s）才变灰
+  $("signalCard").classList.toggle("stale", st === "old");
 }
 const NS_FIELD_RE = /^(Signal power|Total power|TX power|TX time|RX time|Cell ID|ECL|SNR|EARFCN|PCI|RSRQ|OPERATOR MODE|CURRENT BAND)\s*:/i;
 
@@ -1172,6 +1236,7 @@ async function connect() {
     state.failCount = 0;
     state.snapAt = null;
     state.snapKey = null;
+    state.lastLink = null;
     setDlgStatus(t("connectedOk"));
     renderConnState();
     log("connected", "sys");
@@ -1228,6 +1293,7 @@ function onDisconnected() {
   state.failCount = 0;
   state.snapAt = null;
   state.snapKey = null;
+  state.lastLink = null;
   stopPoll();
   renderConnState();
   setDlgStatus(t("disconnected"));
@@ -1254,14 +1320,8 @@ function schedulePoll() {
     }
   })();
   startWatchdog();
-  // 每秒只重刷"X 秒前"这几个字。不能每秒 renderAll()——那会连带重建记录列表。
-  state.ageTimer = setInterval(renderAge, 1000);
-}
-
-// 数据年龄每秒走字（只改一个 span，不动其他 DOM）
-function renderAge() {
-  const el = $("ageTxt");
-  if (el) el.textContent = ageText();
+  // 每秒只刷新年龄条和保存提示。不能每秒 renderAll()——那会连带重建记录列表。
+  state.ageTimer = setInterval(() => { renderAge(); updateSaveState(); }, 1000);
 }
 
 // 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
@@ -1270,13 +1330,17 @@ function startWatchdog() {
   state.watchdog = setInterval(() => {
     if (!state.connected) return;
     const now = Date.now();
-    if (state.lastLineAt && now - state.lastLineAt > HEARTBEAT_TIMEOUT_MS) {
+    // 心跳靠轮询产生：关掉自动刷新后没有任何 AT 命令在发，此时根本没有心跳可言，
+    // 不能据此判死（否则取消勾选 12 秒后就会误报"设备已断开"）。
+    // 手动模式下列路断了会在下次点「刷新一次」时通过失败计数发现。
+    if ($("autoPoll").checked && state.lastLineAt && now - state.lastLineAt > HEARTBEAT_TIMEOUT_MS) {
       log(`heartbeat timeout (${Math.round((now - state.lastLineAt) / 1000)}s)`, "sys");
       onDisconnected();
       return;
     }
-    // 链路还在但读数不更新 → 标过期
-    if (linkState() === "stale") renderAll();
+    // 只在状态真正切换时才整体重绘（改 stale 样式），不每 3 秒重建记录列表
+    const st = linkState();
+    if (st !== state.lastLink) { state.lastLink = st; renderAll(); }
   }, WATCHDOG_INTERVAL_MS);
 }
 
@@ -1455,15 +1519,15 @@ function renderAll() {
   $("rsrpVal").textContent = fmt(r.rsrp, 1);
 
   const csqTxt = r.csq === null || r.csq === undefined ? "" : (r.csq === 99 ? t("noSignal") : "CSQ " + r.csq);
-  // "更新于 X 秒前" —— 相对时间，每秒由 renderAge() 单独刷新（不重绘整张卡片）
+  // 年龄已提到上面的 agebar，这行只放次要信息
   const metaParts = [csqTxt, r.band ? "B" + r.band : "",
-    r.at ? `${t("updated")} <span id="ageTxt">${ageText()}</span>` : ""];
-  if (link === "stale") metaParts.push(`<span class="staleTag">${t("staleData")}</span>`);
+    t($("autoPoll").checked ? "autoRefreshing" : "autoPaused")];
   if (link === "off") {
     $("simpleMeta").textContent = [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
   } else {
     $("simpleMeta").innerHTML = metaParts.filter(Boolean).join(" · ");
   }
+  renderAge();
 
   $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
   $("mRsrq").textContent = fmt(r.rsrq, 1) + " dB";
@@ -1484,7 +1548,22 @@ function renderAll() {
 function updateSaveState() {
   const ready = !!state.reading;
   $("btnSave").disabled = !ready;
-  $("saveHint").textContent = ready ? t("saveHintReady") : t("saveHintNoConn");
+  const hint = $("saveHint");
+  if (!ready) {
+    hint.classList.remove("warn");
+    hint.textContent = t("saveHintNoConn");
+    return;
+  }
+  // 保存把关：数据一旦离开"新鲜"档就提醒等刷新。不硬禁——现场可能就是要存这个值，
+  // 但必须让人看见"这不是此刻的数"。
+  const age = dataAgeMs();
+  if (age !== null && age > AGE_FRESH_MS) {
+    hint.classList.add("warn");
+    hint.textContent = t("saveHintStale").replace("{age}", ageText());
+  } else {
+    hint.classList.remove("warn");
+    hint.textContent = t("saveHintReady");
+  }
 }
 
 function renderRecords() {
@@ -1596,6 +1675,8 @@ $("btnRefresh").addEventListener("click", refresh);
 $("btnCopyLog").addEventListener("click", copyLog);
 $("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
+// 勾选框变化要立刻反映到年龄条/meta（否则关掉自动刷新后界面还写着"自动刷新中"）
+$("autoPoll").addEventListener("change", () => renderAll());
 
 $("btnExport").addEventListener("click", exportCsv);
 $("btnClear").addEventListener("click", () => {
