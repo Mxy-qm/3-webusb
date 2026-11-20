@@ -1,0 +1,15 @@
+# Cloudflare Pages 缓存与安全响应头
+# HTML 每次回源校验，改完刷新即生效（根治 ?v= 绕缓存问题）
+/*
+  Cache-Control: no-cache, must-revalidate
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: SAMEORIGIN
+
+# 页面本身没资源文件，若日后加静态资源可单独放宽
+/*.css
+  Cache-Control: public, max-age=86400
+/*.js
+  Cache-Control: public, max-age=86400
+/*.png
+  Cache-Control: public, max-age=86400
