@@ -66,7 +66,6 @@
   .signal .lvl { font-size: 1.05rem; font-weight: 700; margin-top: 6px; }
   .signal .big { font-size: 1.9rem; font-weight: 700; margin-top: 12px; }
   .signal .unit { font-size: .85rem; color: var(--muted); font-weight: 400; }
-  .advice { margin-top: 10px; font-size: .93rem; color: var(--g900); }
   .meta { margin-top: 8px; font-size: .82rem; color: var(--muted); }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
@@ -92,10 +91,6 @@
   footer a { color: var(--g700); }
 
   /* 点位记录 */
-  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
-  .chip { border: 1px solid var(--line); background: #fff; color: var(--g700); border-radius: 999px;
-          padding: 7px 13px; font-size: .85rem; cursor: pointer; line-height: 1.2; }
-  .chip.active { background: var(--g600); color: #fff; border-color: var(--g600); }
   .rec { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
   .rec:last-child { border-bottom: none; }
   .rec .lbl { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -147,7 +142,7 @@
     <div class="num" id="gradeNum">–</div>
     <div class="lvl" id="gradeLvl" data-i18n="noData">等待连接</div>
     <div class="big"><span id="rsrpVal">--</span> <span class="unit">dBm</span></div>
-    <div class="advice" id="advice"></div>
+
     <div class="meta" id="simpleMeta"></div>
   </div>
 </section>
@@ -180,7 +175,6 @@
   <h2 data-i18n="recordsTitle">现场点位记录</h2>
   <div class="muted" data-i18n="recordsHelp">每测一个位置就存一条。换位置再存一条，存满两条就能自动对比。</div>
 
-  <div class="chips" id="pointChips"></div>
 
   <div class="row" style="margin:10px 0">
     <input type="text" id="pointLabel" placeholder="或自己输入点位名" data-i18n-placeholder="pointPlaceholder">
@@ -891,7 +885,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.4.0-alpha";
+const APP_VERSION = "0.4.1-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -913,11 +907,11 @@ const I18N = {
   autoPoll: { zh: "自动刷新（5 秒）", en: "Auto refresh (5 s)" },
   recordsTitle: { zh: "现场点位记录", en: "Site records" },
   recordsHelp: { zh: "每测一个位置存一条；换位置再存一条，存满两条就能自动对比。", en: "Save one record per location. Move, save again — with two records you get an automatic comparison." },
-  pointPlaceholder: { zh: "或自己输入点位名", en: "or type a name" },
+  pointPlaceholder: { zh: "点位名称，如 树-001 正面", en: "Site name, e.g. tree-001 front" },
   save: { zh: "保存当前读数", en: "Save reading" },
-  saveHintReady: { zh: "读数已就绪：选一个点位名，然后点保存。", en: "Reading ready — pick a site name, then save." },
+  saveHintReady: { zh: "读数已就绪：填好点位名后点保存。", en: "Reading ready — type a site name, then save." },
   saveHintNoConn: { zh: "还没有读数：先点右上角 Connect 连接设备。", en: "No reading yet — tap Connect at the top right first." },
-  emptyHint: { zh: "还没有记录。连接设备 → 选点位名 → 点「保存当前读数」。", en: "No records yet. Connect → pick a site name → tap Save reading." },
+  emptyHint: { zh: "还没有记录。连接设备 → 填点位名 → 点「保存当前读数」。", en: "No records yet. Connect → type a site name → tap Save reading." },
   cmpTitle: { zh: "两点位对比", en: "Compare two sites" },
   cmpPick: { zh: "选择要对比的两个点位", en: "Choose two sites" },
   cmpHigher: { zh: "高", en: "higher by" },
@@ -937,12 +931,7 @@ const I18N = {
   lvl4: { zh: "覆盖一般", en: "Marginal coverage" },
   lvl5: { zh: "覆盖差", en: "Poor coverage" },
   lvl6: { zh: "覆盖较差", en: "Very poor coverage" },
-  adv1: { zh: "信号很好，可以正常安装。", en: "Signal is strong; installation is fine." },
-  adv2: { zh: "信号良好，可以正常安装。", en: "Signal is good; installation is fine." },
-  adv3: { zh: "信号够用，室内外都能连接。", en: "Signal is fair; connects indoors and outdoors." },
-  adv4: { zh: "信号一般，室内连接成功率低，建议靠近窗口或抬高天线。", en: "Marginal signal. Indoor success rate is low; move closer to a window or raise the antenna." },
-  adv5: { zh: "信号差，室内难以连接，建议换朝向、抬高 1 米或移出遮挡。", en: "Poor signal. Indoor connection is difficult; change orientation, raise by 1 m, or move clear of obstructions." },
-  adv6: { zh: "信号较差，业务基本无法连接，建议更换点位。", en: "Very poor signal. Service is unlikely to work; choose another location." },
+
   noSignal: { zh: "无信号（CSQ 99）", en: "No signal (CSQ 99)" },
   updated: { zh: "更新于", en: "Updated" },
   noRecords: { zh: "还没有记录。连接后填好点位标签再点保存。", en: "No records yet. Connect, enter a site label, then save." },
@@ -991,7 +980,6 @@ function applyI18n() {
   $("langSel").value = lang;
   renderConnState();
   renderAll();
-  renderChips();
 }
 
 /* ================= 状态 ================= */
@@ -1268,7 +1256,7 @@ function renderAll() {
   $("gradeNum").textContent = g ? String(g) : "–";
   $("gradeLvl").textContent = g ? t("lvl" + g) : t("noData");
   $("rsrpVal").textContent = fmt(r.rsrp, 1);
-  $("advice").textContent = g ? t("adv" + g) : "";
+
   const csqTxt = r.csq === null || r.csq === undefined ? "" : (r.csq === 99 ? t("noSignal") : "CSQ " + r.csq);
   $("simpleMeta").textContent = [csqTxt, r.band ? "B" + r.band : "", r.at ? t("updated") + " " + new Date(r.at).toTimeString().slice(0, 8) : ""]
     .filter(Boolean).join(" · ");
@@ -1288,34 +1276,6 @@ function renderAll() {
   renderRecords();
 }
 
-const PRESETS = [
-  { id: "a1", zh: "A1 原位", en: "A1 original" },
-  { id: "a2", zh: "A2 换朝向", en: "A2 reorient" },
-  { id: "a3", zh: "A3 抬高1m", en: "A3 raise 1m" },
-  { id: "b1", zh: "B1 邻树", en: "B1 neighbour" },
-  { id: "open", zh: "开阔参照", en: "Open ref" }
-];
-
-function presetLabel(p) { return lang === "zh" ? p.zh : p.en; }
-
-function renderChips() {
-  const box = $("pointChips");
-  box.innerHTML = PRESETS.map((p) => `<button class="chip" data-chip="${p.id}">${presetLabel(p)}</button>`).join("");
-  box.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => {
-    const p = PRESETS.find((x) => x.id === b.dataset.chip);
-    $("pointLabel").value = presetLabel(p);
-    syncChipActive();
-  }));
-  syncChipActive();
-}
-
-function syncChipActive() {
-  const cur = $("pointLabel").value.trim();
-  document.querySelectorAll("#pointChips .chip").forEach((b) => {
-    const p = PRESETS.find((x) => x.id === b.dataset.chip);
-    b.classList.toggle("active", !!p && presetLabel(p) === cur);
-  });
-}
 
 function updateSaveState() {
   const ready = !!state.reading;
@@ -1453,7 +1413,7 @@ $("btnRefresh").addEventListener("click", refresh);
 $("btnCopyLog").addEventListener("click", copyLog);
 $("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
-$("pointLabel").addEventListener("input", syncChipActive);
+
 $("btnExport").addEventListener("click", exportCsv);
 $("btnClear").addEventListener("click", () => {
   if (!state.records.length) return;
