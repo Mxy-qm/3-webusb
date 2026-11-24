@@ -120,6 +120,7 @@
   .atrack.wait i { background: var(--amber); }
   .atrack.old i { background: var(--red); }
   #saveHint.warn { color: var(--amber); font-weight: 600; }
+  #netStat.warn { color: var(--amber); font-weight: 600; }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
   td, th { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
@@ -232,6 +233,7 @@
       <span class="adot"></span><span class="atxt"></span><span class="apill"></span>
     </div>
     <div class="atrack" hidden><i></i></div>
+    <div class="muted" id="netStat" style="margin-top:8px"></div>
     <table>
       <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
       <tr><td>RSRQ</td><td class="v" id="mRsrq">--</td></tr>
@@ -247,6 +249,7 @@
     <div class="muted" style="margin-top:8px" data-i18n="eclNote">ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。</div>
     <div class="row" style="margin-top:12px">
       <button id="btnRefresh" data-i18n="refresh">刷新一次</button>
+      <button id="btnNetCheck" class="ghost" data-i18n="netCheck">网络自检</button>
       <label class="muted" style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="autoPoll" checked> <span data-i18n="autoPoll">自动刷新（5 秒）</span>
       </label>
@@ -968,7 +971,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.5-alpha";
+const APP_VERSION = "0.7.6-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -1027,6 +1030,41 @@ const I18N = {
     zhHant: "⚠ 數據 {age}，建議等更新後再存",
     en: "⚠ Data {age} — wait for a refresh before saving",
   },
+  netCheck: { zh: "网络自检", zhHant: "網路自檢", en: "Network self-test" },
+  netCheckTitle: { zh: "— 网络自检 —", zhHant: "— 網路自檢 —", en: "— network self-test —" },
+  netSim: { zh: "SIM", zhHant: "SIM", en: "SIM" },
+  netReg: { zh: "注册", zhHant: "註冊", en: "Registration" },
+  netBand: { zh: "频段", zhHant: "頻段", en: "Bands" },
+  netFw: { zh: "固件", zhHant: "韌體", en: "Firmware" },
+  netOp: { zh: "运营商", zhHant: "業者", en: "Operator" },
+  reg0: { zh: "未注册（未在搜网）", zhHant: "未註冊（未在搜網）", en: "not registered, not searching" },
+  reg1: { zh: "已注册（本地）", zhHant: "已註冊（本地）", en: "registered (home)" },
+  reg2: { zh: "搜索中", zhHant: "搜尋中", en: "searching" },
+  reg3: { zh: "被网络拒绝", zhHant: "被網路拒絕", en: "registration denied" },
+  reg4: { zh: "未知", zhHant: "未知", en: "unknown" },
+  reg5: { zh: "已注册（漫游）", zhHant: "已註冊（漫遊）", en: "registered (roaming)" },
+  conclNoSim: {
+    zh: "结论：SIM 未就绪 → 检查卡是否插好、是否已激活",
+    zhHant: "結論：SIM 未就緒 → 檢查卡是否插好、是否已啟用",
+    en: "Conclusion: SIM not ready — check the card is seated and activated",
+  },
+  conclDenied: {
+    zh: "结论：被网络拒绝 → SIM 无漫游权限或未激活",
+    zhHant: "結論：被網路拒絕 → SIM 無漫遊權限或未啟用",
+    en: "Conclusion: registration denied — the SIM has no roaming rights or is not activated",
+  },
+  conclOk: { zh: "结论：已注册网络", zhHant: "結論：已註冊網路", en: "Conclusion: registered on the network" },
+  conclNoCell: {
+    zh: "结论：模组在搜网但搜不到小区 → ① 检查天线是否接好 ② 确认当地 NB-IoT 频段在列表内（欧洲常见 B8/B20）",
+    zhHant: "結論：模組在搜網但搜不到小區 → ① 檢查天線是否接好 ② 確認當地 NB-IoT 頻段在列表內（歐洲常見 B8/B20）",
+    en: "Conclusion: searching but no cell found — ① check the antenna is attached ② confirm the local NB-IoT band is in the list (Europe commonly uses B8/B20)",
+  },
+  conclNoB20: {
+    zh: "结论：搜不到小区 → ① 先检查天线是否接好 ② 频段列表里没有 B20（欧洲大量 NB-IoT 在 800MHz）→ 可试 AT+NBAND=1,3,5,8,20,28 后 AT+NRB 重启",
+    zhHant: "結論：搜不到小區 → ① 先檢查天線是否接好 ② 頻段列表裡沒有 B20（歐洲大量 NB-IoT 在 800MHz）→ 可試 AT+NBAND=1,3,5,8,20,28 後 AT+NRB 重啟",
+    en: "Conclusion: no cell found — ① check the antenna is attached ② B20 is not enabled (much of Europe uses 800 MHz) → try AT+NBAND=1,3,5,8,20,28 then AT+NRB",
+  },
+  netUnreg: { zh: "网络未注册", zhHant: "網路未註冊", en: "network not registered" },
   justNow: { zh: "刚刚更新", zhHant: "剛剛更新", en: "just now" },
   agoSec: { zh: "{n} 秒前", zhHant: "{n} 秒前", en: "{n}s ago" },
   agoMin: { zh: "{n} 分前", zhHant: "{n} 分前", en: "{n}m ago" },
@@ -1096,6 +1134,7 @@ const state = {
   ageTimer: null,      // 年龄条/保存提示的每秒刷新定时器
   lastLink: null,      // 上一次的链路状态，用于只在切换时重绘
   everConnected: false, // 本次会话是否成功连过——区分"从没连过"和"连上又掉了"
+  net: null,           // 最近一次网络自检结果（SIM / 注册状态 / 频段 / 固件 / 运营商）
   watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
@@ -1322,6 +1361,7 @@ async function connect() {
     schedulePoll();
     await drainInput(250);
     await refresh();
+    networkSelfCheck();   // 不 await：别让自检拖慢连接，命令队列会按顺序执行
     setTimeout(closeModal, 600);
   } catch (e) {
     state.connected = false;
@@ -1373,6 +1413,7 @@ function onDisconnected() {
   state.snapAt = null;
   state.snapKey = null;
   state.lastLink = null;
+  state.net = null;
   stopPoll();
   renderConnState();
   setDlgStatus(t("disconnected"));
@@ -1572,6 +1613,78 @@ async function doRefresh() {
   return true;
 }
 
+/* ================= 网络自检 ================= */
+// 连上 USB 不等于能用：SIM 就绪没有、有没有注册上网络、开的频段对不对，
+// 原来只能靠人工去诊断页敲 AT。现在连上自动读一遍并直接给结论。
+function firstMatch(lines, re) {
+  for (const l of lines) { const m = re.exec(l); if (m) return m; }
+  return null;
+}
+
+function regStateText(reg) {
+  return reg === null || reg === undefined || isNaN(reg) ? "--" : t("reg" + reg);
+}
+
+async function networkSelfCheck() {
+  if (!state.connected) return;
+  log(t("netCheckTitle"), "sys");
+  const grab = async (cmd, ms) => (await enqueue(cmd, ms || 1500)) || [];
+
+  const cpLines = await grab("AT+CPIN?");
+  const cpM = firstMatch(cpLines, /\+CPIN:\s*(\S+)/i);
+  const cpReady = !!(cpM && /ready/i.test(cpM[1]));
+
+  const regLines = await grab("AT+CEREG?");
+  const regM = firstMatch(regLines, /\+CEREG:\s*\d+\s*,\s*(\d+)/i);
+  const reg = regM ? +regM[1] : null;
+
+  const bandLines = await grab("AT+NBAND?");
+  const bandM = firstMatch(bandLines, /\+NBAND:\s*([\d,]+)/i);
+  const bands = bandM ? bandM[1].split(",").map(Number).filter((n) => !isNaN(n)) : [];
+
+  const fwLines = await grab("AT+CGMR");
+  const fw = fwLines.map((l) => l.trim())
+    .find((l) => l && !/^(OK|ERROR|\+CME ERROR)/i.test(l) && !/^AT\+/i.test(l)) || "";
+
+  const copsLines = await grab("AT+COPS?");
+  const copsM = firstMatch(copsLines, /\+COPS:\s*\d+(?:\s*,\s*\d+\s*,\s*"([^"]*)")?/i);
+  const oper = copsM && copsM[1] ? copsM[1] : "";
+
+  state.net = { cpReady, reg, bands, fw, oper, at: Date.now() };
+  log(`[${t("netCheck")}] ${t("netSim")}: ${cpReady ? "READY" : "✗"} · ${t("netReg")}: ${regStateText(reg)}` +
+    ` · ${t("netBand")}: ${bands.join(",") || "--"}` +
+    (fw ? ` · ${t("netFw")}: ${fw}` : "") + (oper ? ` · ${t("netOp")}: ${oper}` : ""), "sys");
+  log(`[${t("netCheck")}] ${netConclusion()}`, "sys");
+  renderAll();
+}
+
+function netConclusion() {
+  const net = state.net;
+  if (!net) return "";
+  if (!net.cpReady) return t("conclNoSim");
+  if (net.reg === 3) return t("conclDenied");
+  if (net.reg === 1 || net.reg === 5) return t("conclOk");
+  // 其余（0 / 2 / 4 / 读不到）都算"没注册上"，再看是天线的锅还是频段的锅
+  const csq = state.reading ? state.reading.csq : null;
+  const noCell = csq === 99 || csq === null || csq === undefined;
+  if (noCell && net.bands.length && !net.bands.includes(20)) return t("conclNoB20");
+  return t("conclNoCell");
+}
+
+function renderNetStat() {
+  const el = $("netStat");
+  if (!el) return;
+  const net = state.net;
+  if (!net || !state.connected) { el.textContent = ""; el.classList.remove("warn"); return; }
+  const ok = net.cpReady && (net.reg === 1 || net.reg === 5);
+  el.textContent = [
+    `${t("netSim")} ${net.cpReady ? "READY" : "✗"}`,
+    `${t("netReg")}: ${regStateText(net.reg)}`,
+    net.bands.length ? `${t("netBand")}: ${net.bands.join(",")}` : "",
+  ].filter(Boolean).join(" · ");
+  el.classList.toggle("warn", !ok);
+}
+
 /* ================= 渲染 ================= */
 function fmt(v, digits) {
   if (v === null || v === undefined || isNaN(v)) return "--";
@@ -1604,12 +1717,18 @@ function renderAll() {
   // 年龄已提到上面的 agebar，这行只放次要信息
   const metaParts = [csqTxt, r.band ? "B" + r.band : "",
     t($("autoPoll").checked ? "autoRefreshing" : "autoPaused")];
+  // USB 通了但网络没注册——这时光显示"无信号"会让人以为只是信号差
+  if (link !== "off" && state.net && state.net.reg !== null &&
+      state.net.reg !== 1 && state.net.reg !== 5) {
+    metaParts.splice(1, 0, t("netUnreg"));
+  }
   if (link === "off") {
     $("simpleMeta").textContent = neverLinked ? "" : [csqTxt, t("offlineTitle")].filter(Boolean).join(" · ");
   } else {
     $("simpleMeta").innerHTML = metaParts.filter(Boolean).join(" · ");
   }
   renderAge();
+  renderNetStat();
 
   $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
   $("mRsrq").textContent = fmt(r.rsrq, 1) + " dB";
@@ -1754,6 +1873,7 @@ $("connMask").addEventListener("click", (e) => { if (e.target === $("connMask"))
 $("btnConnect").addEventListener("click", connect);
 $("btnDisconnect").addEventListener("click", disconnect);
 $("btnRefresh").addEventListener("click", refresh);
+$("btnNetCheck").addEventListener("click", () => networkSelfCheck());
 $("btnCopyLog").addEventListener("click", copyLog);
 $("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
