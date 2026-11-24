@@ -73,6 +73,8 @@
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
   .muted { color: var(--muted); font-size: .85rem; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  /* 原生 select 的固有宽度 = 最宽选项，长国名会把卡片撑破 → 必须允许收缩 */
+  .row select { min-width: 0; max-width: 100%; }
 
   nav { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
   nav button { flex: 1 1 0; background: #fff; color: var(--g700); border: 1px solid var(--line); }
@@ -222,6 +224,14 @@
     </div>
     <div class="meta" id="simpleMeta"></div>
     <div class="atrack" id="ageTrack" hidden><i id="ageFill"></i></div>
+    <!-- 简单视图也给地区入口：在国外/国内都要能看到该用哪些频段（只给短码，不给命令） -->
+    <div class="row" style="margin-top:12px;justify-content:center;gap:6px">
+      <label class="muted" style="display:flex;align-items:center;gap:5px;font-size:.82rem;min-width:0">
+        <span data-i18n="regionLabel">地区</span>
+        <select id="regionSelSimple" style="padding:3px 18px 3px 5px;font-size:.82rem;min-width:0;max-width:100%"></select>
+      </label>
+      <span id="bandHintSimple" class="muted" style="font-size:.8rem"></span>
+    </div>
   </div>
 </section>
 
@@ -233,13 +243,13 @@
       <span class="adot"></span><span class="atxt"></span><span class="apill"></span>
     </div>
     <div class="atrack" hidden><i></i></div>
-    <div class="row" style="margin-top:10px;gap:8px">
-      <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:.85rem;flex:none;white-space:nowrap">
+    <div class="row" style="margin-top:10px;gap:6px">
+      <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:.85rem;flex:none;min-width:0;white-space:nowrap">
         <span data-i18n="regionLabel">地区</span>
-        <select id="regionSel" style="padding:4px 20px 4px 6px;font-size:.85rem;flex:none"></select>
+        <select id="regionSel" style="padding:4px 20px 4px 6px;font-size:.85rem;min-width:0;max-width:100%"></select>
       </label>
-      <span id="bandAdvice" class="muted" style="font-size:.82rem;flex:1;min-width:0"></span>
     </div>
+    <div class="muted" id="bandAdvice" style="font-size:.82rem;margin-top:6px;min-width:0;word-break:break-word"></div>
     <div class="muted" id="netStat" style="margin-top:8px"></div>
     <table>
       <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
@@ -978,7 +988,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.8-alpha";
+const APP_VERSION = "0.7.9-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -1093,19 +1103,30 @@ const I18N = {
     en: "Conclusion: not registered and CR_0859_SI_AVOID is FALSE — Deutsche Telekom/T-Mobile networks require TRUE. Try AT+NCONFIG=AUTOCONNECT,TRUE then AT+NRB",
   },
   regionLabel: { zh: "地区", zhHant: "地區", en: "Region" },
-  regionCN: { zh: "中国 · 香港 · 台湾", zhHant: "中國 · 香港 · 台灣", en: "China / HK / Taiwan" },
-  regionEU: { zh: "欧洲", zhHant: "歐洲", en: "Europe" },
-  regionNA: { zh: "美国 / 北美", zhHant: "美國 / 北美", en: "US / North America" },
+  regionUnset: { zh: "未选", zhHant: "未選", en: "—" },
+  groupEu: { zh: "欧洲", zhHant: "歐洲", en: "Europe" },
+  groupAsia: { zh: "亚洲", zhHant: "亞洲", en: "Asia" },
+  groupAm: { zh: "美洲", zhHant: "美洲", en: "Americas" },
+  groupNa: { zh: "北美（本模块不支持）", zhHant: "北美（本模組不支援）", en: "N. America (unsupported)" },
+  groupOther: { zh: "其他", zhHant: "其他", en: "Other" },
   regionOther: { zh: "其他 / 不确定", zhHant: "其他 / 不確定", en: "Other / unsure" },
   regionNoneHint: {
-    zh: "未选地区 —— 欧洲 3,8,20 · 中国/香港 8 · 北美不支持",
-    zhHant: "未選地區 —— 歐洲 3,8,20 · 中國/香港 8 · 北美不支援",
-    en: "No region chosen — Europe 3,8,20 · China/HK 8 · North America unsupported",
+    zh: "未选地区 —— 欧洲多为 20、中国/香港 8、北美不支持",
+    zhHant: "未選地區 —— 歐洲多為 20、中國/香港 8、北美不支援",
+    en: "No region chosen — Europe is mostly 20, China/HK 8, North America unsupported",
   },
+  regionHintShort: { zh: "建议 {bands}", zhHant: "建議 {bands}", en: "Bands {bands}" },
+  regionHintNA: { zh: "本模块不支持", zhHant: "本模組不支援", en: "unsupported" },
+  regionHintUnknown: { zh: "表内无该地区频段", zhHant: "表內無該地區頻段", en: "no band data" },
   bandAdvice: {
     zh: "建议频段 {bands} · 命令 AT+NBAND={bands} → AT+NRB",
     zhHant: "建議頻段 {bands} · 指令 AT+NBAND={bands} → AT+NRB",
     en: "Suggested bands {bands} · run AT+NBAND={bands} then AT+NRB",
+  },
+  bandAdviceGap: {
+    zh: "1NCE 表内此国未给 NB-IoT 频段，按欧洲通用值 3,8,20 · 命令 AT+NBAND=3,8,20 → AT+NRB",
+    zhHant: "1NCE 表內此國未給 NB-IoT 頻段，依歐洲通用值 3,8,20 · 指令 AT+NBAND=3,8,20 → AT+NRB",
+    en: "1NCE gives no NB-IoT band for this country; using the European default 3,8,20 · run AT+NBAND=3,8,20 then AT+NRB",
   },
   bandAdviceNA: {
     zh: "北美 NB-IoT 用 B2/B4/B12/B13/B66，本模块（BC28：B1/3/5/8/20/28）全不支持",
@@ -1123,14 +1144,9 @@ const I18N = {
     en: "Conclusion: region is North America — this module supports none of B2/B4/B12/B13/B66; you need another module (e.g. BC66-NA / BG95)",
   },
   conclBandNarrow: {
-    zh: "结论：未注册，且当前频段 {cur} 与该地区的 {want} 不一致 —— 设 AT+NBAND={want} 后 AT+NRB 重启，首扫时间能大幅缩短",
-    zhHant: "結論：未註冊，且當前頻段 {cur} 與該地區的 {want} 不一致 —— 設 AT+NBAND={want} 後 AT+NRB 重啟，首掃時間能大幅縮短",
-    en: "Conclusion: not registered, and current bands {cur} differ from this region's {want} — set AT+NBAND={want} then AT+NRB; first scan gets much faster",
-  },
-  pickerEmpty: {
-    zh: "没有可选设备（或你点了取消）。如果确实插着测试棒：① 拔掉等 10 秒再插 ② 关掉所有开过本页面的标签页后重新打开 ③ 仍为空 = 系统没识别到设备，换一根线 / 换个 USB 口（可用诊断页 ④ 确认）",
-    zhHant: "沒有可選裝置（或你點了取消）。如果確實插著測試棒：① 拔掉等 10 秒再插 ② 關掉所有開過本頁面的分頁後重新開啟 ③ 仍為空 = 系統沒識別到裝置，換一條線 / 換個 USB 埠（可用診斷頁 ④ 確認）",
-    en: "No device available (or you cancelled). If the dongle is plugged in: ① unplug, wait 10s, replug ② close every tab that opened this page, then reopen ③ still empty = the OS never saw it: try another cable / USB port (confirm with Diagnostics ④)",
+    zh: "结论：未注册，当前频段 {cur} 与所选地区「{country}」的 {want} 不一致 —— 设 AT+NBAND={want} 后 AT+NRB 重启，首扫时间能大幅缩短",
+    zhHant: "結論：未註冊，當前頻段 {cur} 與所選地區「{country}」的 {want} 不一致 —— 設 AT+NBAND={want} 後 AT+NRB 重啟，首掃時間能大幅縮短",
+    en: "Conclusion: not registered; current bands {cur} differ from {country} ({want}) — set AT+NBAND={want} then AT+NRB; first scan gets much faster",
   },
   justNow: { zh: "刚刚更新", zhHant: "剛剛更新", en: "just now" },
   agoSec: { zh: "{n} 秒前", zhHant: "{n} 秒前", en: "{n}s ago" },
@@ -1173,6 +1189,7 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => { el.placeholder = t(el.dataset.i18nPlaceholder); });
   $("langSel").value = lang;
+  if (typeof buildRegionOptions === "function") buildRegionOptions();  // 国家名要跟着语言重建
   renderConnState();
   renderAll();
 }
@@ -1331,7 +1348,7 @@ async function runCmd(text, timeoutMs) {
 /* ================= 连接 ================= */
 function explainError(e) {
   const m = (e && e.message) || String(e);
-  if (e && e.name === "NotFoundError") return t("pickerEmpty");
+  if (e && e.name === "NotFoundError") return t("cancelled");
   // SecurityError 有两个完全不同的来源，必须分开报，否则会把排障引到错误方向：
   //   ① 我们自己抛的"页面不在安全上下文"
   //   ② USBDevice.open() 被操作系统拒绝（Chromium 固定用 "Access denied." 表达）
@@ -1774,19 +1791,21 @@ function netConclusion() {
   if (net.reg === 3) return t("conclDenied");
   if (net.reg === 1 || net.reg === 5) return t("conclOk");
   // 未注册。按"最可能马上能解决"的顺序给建议：
-  if (state.region === "na") return t("conclRegionNA");
+  if (regionIsUnsupported()) return t("conclRegionNA");
   if (net.cr859 === "FALSE") return t("conclCrFlags");
   const want = regionBands();
   if (want && want.length) {
     const same = want.length === net.bands.length && want.every((b) => net.bands.includes(b));
-    if (!same) return tFill("conclBandNarrow", { cur: net.bands.join(",") || "--", want: want.join(",") });
+    if (!same) return tFill("conclBandNarrow", {
+      cur: net.bands.join(",") || "--", want: want.join(","), country: regionLabelText(),
+    });
   } else if (net.bands.length > 3) {
     return tFill("conclBandTooMany", { n: net.bands.length });
   }
   const csq = state.reading ? state.reading.csq : null;
   const noCell = csq === 99 || csq === null || csq === undefined;
-  // 选了"中国/香港"或"北美"时别再提 B20（那是欧洲的频段，会把国内用户带偏）
-  const b20Hint = state.region !== "cn" && state.region !== "na";
+  // 选了中国/香港/北美时别再提 B20（那是欧洲频段，会把国内用户带偏）
+  const b20Hint = !["cn", "hk", "tw", "us", "pr", "vi"].includes(state.region);
   if (noCell && b20Hint && net.bands.length && !net.bands.includes(20)) return t("conclNoB20");
   return t("conclNoCell");
 }
@@ -1805,31 +1824,96 @@ function renderNetStat() {
   el.classList.toggle("warn", !ok);
 }
 
-/* ================= 区域频段（数据来自 1NCE 覆盖导出表） ================= */
+/* ================= 国家级 NB-IoT 频段 ================= */
 // 工具无法知道自己在哪（模组没注册时 COPS/CEREG 全空，IMSI 的 MCC 只是卡的归属国），
-// 所以直接让用户选地区，再给对应命令。选"北美"会明确告诉用户本模块用不了。
-const REGION_BANDS = {
-  cn: [8],                    // 1NCE 表：中国 B8、台湾 B8；香港实测 B8
-  eu: [3, 8, 20],             // 1NCE 表：欧洲 20 国以 B20 为主，少数 B8，挪威 B3
-  na: null,                   // 北美 B2/B4/B12/B13/B66 —— BC28 一个都不支持
-  other: null,                // 无法从表里确定
-};
+// 所以让用户选国家/地区，再给对应命令。
+// 数据源：1NCE 覆盖导出表 ..\lify-t\SIM_cards\other sim doc\1nce_LeafIoT _coverage_export_*.pdf
+//   · hk 不在该表 —— 频段来自现场实测（CMHK 驻留 B8，PCI 81/287）
+//   · hu 该行 PDF 解析串行（出现 B18/B19，匈牙利不可能）—— 按 Deutsche Telekom 漫游清单修正为 20,8
+//   · is / li / si —— 表内标了 NB-IoT 但未给频段 → 按欧洲通用 3,8,20（gap 标记）
+const SUPPORTED_BANDS = [1, 3, 5, 8, 20, 28];   // BC28 硬件支持（北美条目全不在其中，故标 na）
+const COUNTRY_BANDS = [
+  // ---- 欧洲（1NCE 覆盖表）----
+  { code: "at", g: "eu", b: [8], zh: "奥地利", hant: "奧地利", en: "Austria" },
+  { code: "be", g: "eu", b: [20], zh: "比利时", hant: "比利時", en: "Belgium" },
+  { code: "bg", g: "eu", b: [8], zh: "保加利亚", hant: "保加利亞", en: "Bulgaria" },
+  { code: "hr", g: "eu", b: [20], zh: "克罗地亚", hant: "克羅埃西亞", en: "Croatia" },
+  { code: "cz", g: "eu", b: [20], zh: "捷克", hant: "捷克", en: "Czechia" },
+  { code: "dk", g: "eu", b: [20], zh: "丹麦", hant: "丹麥", en: "Denmark" },
+  { code: "ee", g: "eu", b: [20], zh: "爱沙尼亚", hant: "愛沙尼亞", en: "Estonia" },
+  { code: "fi", g: "eu", b: [20], zh: "芬兰", hant: "芬蘭", en: "Finland" },
+  { code: "fr", g: "eu", b: [20], zh: "法国", hant: "法國", en: "France" },
+  { code: "de", g: "eu", b: [8, 20], zh: "德国", hant: "德國", en: "Germany" },
+  { code: "gb", g: "eu", b: [20], zh: "英国", hant: "英國", en: "UK" },
+  { code: "gr", g: "eu", b: [20], zh: "希腊", hant: "希臘", en: "Greece" },
+  { code: "hu", g: "eu", b: [20, 8], zh: "匈牙利", hant: "匈牙利", en: "Hungary" },
+  { code: "ie", g: "eu", b: [20], zh: "爱尔兰", hant: "愛爾蘭", en: "Ireland" },
+  { code: "it", g: "eu", b: [20], zh: "意大利", hant: "義大利", en: "Italy" },
+  { code: "lv", g: "eu", b: [20], zh: "拉脱维亚", hant: "拉脫維亞", en: "Latvia" },
+  { code: "mt", g: "eu", b: [20], zh: "马耳他", hant: "馬爾他", en: "Malta" },
+  { code: "nl", g: "eu", b: [8, 20], zh: "荷兰", hant: "荷蘭", en: "Netherlands" },
+  { code: "no", g: "eu", b: [3, 20], zh: "挪威", hant: "挪威", en: "Norway" },
+  { code: "pl", g: "eu", b: [20], zh: "波兰", hant: "波蘭", en: "Poland" },
+  { code: "pt", g: "eu", b: [20], zh: "葡萄牙", hant: "葡萄牙", en: "Portugal" },
+  { code: "sk", g: "eu", b: [20], zh: "斯洛伐克", hant: "斯洛伐克", en: "Slovakia" },
+  { code: "es", g: "eu", b: [20], zh: "西班牙", hant: "西班牙", en: "Spain" },
+  { code: "se", g: "eu", b: [8, 20], zh: "瑞典", hant: "瑞典", en: "Sweden" },
+  { code: "ch", g: "eu", b: [20], zh: "瑞士", hant: "瑞士", en: "Switzerland" },
+  { code: "is", g: "eu", b: [3, 8, 20], gap: true, zh: "冰岛", hant: "冰島", en: "Iceland" },
+  { code: "li", g: "eu", b: [3, 8, 20], gap: true, zh: "列支敦士登", hant: "列支敦斯登", en: "Liechtenstein" },
+  { code: "si", g: "eu", b: [3, 8, 20], gap: true, zh: "斯洛文尼亚", hant: "斯洛維尼亞", en: "Slovenia" },
+  // ---- 亚洲 ----
+  { code: "cn", g: "asia", b: [8], zh: "中国", hant: "中國", en: "China" },
+  { code: "hk", g: "asia", b: [8], src: "measured", zh: "香港", hant: "香港", en: "Hong Kong" },
+  { code: "tw", g: "asia", b: [8], zh: "台湾", hant: "台灣", en: "Taiwan" },
+  { code: "in", g: "asia", b: [3], zh: "印度", hant: "印度", en: "India" },
+  // ---- 美洲 ----
+  { code: "br", g: "am", b: [28], zh: "巴西", hant: "巴西", en: "Brazil" },
+  { code: "mx", g: "am", b: [5], zh: "墨西哥", hant: "墨西哥", en: "Mexico" },
+  // ---- 北美：BC28 一个频段都不支持 ----
+  { code: "us", g: "na", b: [2, 4, 5, 12, 17, 66], na: true, zh: "美国", hant: "美國", en: "US" },
+  { code: "pr", g: "na", b: [2, 4, 12], na: true, zh: "波多黎各", hant: "波多黎各", en: "Puerto Rico" },
+  { code: "vi", g: "na", b: [2, 4, 12], na: true, zh: "美属维尔京", hant: "美屬維京", en: "USVI" },
+];
 
+function countryByCode(code) {
+  return COUNTRY_BANDS.find((c) => c.code === code) || null;
+}
+function countryName(c) {
+  return c ? (c[lang] || c.zh || c.en) : "";
+}
 function regionBands() {
-  const r = state.region;
-  return r && REGION_BANDS[r] ? REGION_BANDS[r] : null;
+  const c = countryByCode(state.region);
+  return c ? c.b : null;
+}
+function regionIsUnsupported() {
+  const c = countryByCode(state.region);
+  return !!(c && c.na);
+}
+function regionLabelText() {
+  if (!state.region) return t("regionUnset");
+  if (state.region === "other") return t("regionOther");
+  return countryName(countryByCode(state.region));
 }
 
+// 高级页给完整建议（含命令），简单页只给短码（简单视图按定位不含操作文案）
 function renderBandAdvice() {
-  const el = $("bandAdvice");
-  if (!el) return;
-  const r = state.region;
-  if (!r) { el.textContent = t("regionNoneHint"); el.classList.remove("warn"); return; }
-  if (r === "na") { el.textContent = t("bandAdviceNA"); el.classList.add("warn"); return; }
-  const bands = REGION_BANDS[r];
-  if (!bands) { el.textContent = t("bandAdviceOther"); el.classList.remove("warn"); return; }
-  el.textContent = tFill("bandAdvice", { bands: bands.join(",") });
-  el.classList.remove("warn");
+  const adv = $("bandAdvice"), hint = $("bandHintSimple");
+  const c = countryByCode(state.region);
+  let longText = "", shortText = "", warn = false;
+  if (!state.region) {
+    longText = t("regionNoneHint");
+  } else if (state.region === "other" || !c) {
+    longText = t("bandAdviceOther"); shortText = t("regionHintUnknown"); warn = true;
+  } else if (c.na) {
+    longText = t("bandAdviceNA"); shortText = t("regionHintNA"); warn = true;
+  } else {
+    const bands = c.b.join(",");
+    longText = c.gap ? t("bandAdviceGap") : tFill("bandAdvice", { bands });
+    shortText = tFill("regionHintShort", { bands });
+  }
+  if (adv) { adv.textContent = longText; adv.classList.toggle("warn", warn); }
+  if (hint) { hint.textContent = shortText; hint.classList.toggle("warn", warn); }
 }
 
 /* ================= 渲染 ================= */
@@ -2048,19 +2132,43 @@ function switchView(v) {
   $("tabAdvanced").classList.toggle("active", v === "advanced");
 }
 
-// 地区选择器：工具判断不了自己在哪，由用户选
+// 地区选择：工具判断不了自己在哪，由用户选国家/地区。两个视图各一个下拉，共用 state.region。
+const REGION_SELECTS = ["regionSel", "regionSelSimple"];
+function buildRegionOptions() {
+  const opts = [`<option value="">${t("regionUnset")}</option>`];
+  for (const g of ["eu", "asia", "am", "na"]) {
+    const gk = { eu: "groupEu", asia: "groupAsia", am: "groupAm", na: "groupNa" }[g];
+    const items = COUNTRY_BANDS.filter((c) => c.g === g)
+      .map((c) => `<option value="${c.code}">${countryName(c)}</option>`).join("");
+    if (items) opts.push(`<optgroup label="${t(gk)}">${items}</optgroup>`);
+  }
+  opts.push(`<optgroup label="${t("groupOther")}"><option value="other">${t("regionOther")}</option></optgroup>`);
+  for (const id of REGION_SELECTS) { const el = $(id); if (el) el.innerHTML = opts.join(""); }
+  syncRegionSelects();
+}
+
+function syncRegionSelects() {
+  for (const id of REGION_SELECTS) { const el = $(id); if (el) el.value = state.region; }
+}
+
+function setRegion(code) {
+  // v0.7.8 存的是 eu/cn/na 这类大洲键，迁移时一律视为未选（不猜）
+  state.region = (code === "other" || countryByCode(code)) ? code : "";
+  try { localStorage.setItem("nbtest.region", state.region); } catch (e) {}
+  syncRegionSelects();
+  renderBandAdvice();
+  renderAll();
+  if (state.connected && state.net) {
+    log(`[${t("netCheck")}] ${t("regionLabel")}: ${regionLabelText()} → ${netConclusion()}`, "sys");
+  }
+}
+
 (function initRegion() {
-  const sel = $("regionSel");
-  const opts = [["", "regionNoneHint"], ["cn", "regionCN"], ["eu", "regionEU"], ["na", "regionNA"], ["other", "regionOther"]];
-  sel.innerHTML = opts.map(([v, k]) => `<option value="${v}">${t(k)}</option>`).join("");
-  sel.value = state.region;
-  sel.addEventListener("change", (e) => {
-    state.region = e.target.value;
-    localStorage.setItem("nbtest.region", state.region);
-    renderBandAdvice();
-    renderAll();
-    if (state.connected && state.net) log(`[${t("netCheck")}] ${t("regionLabel")}: ${sel.options[sel.selectedIndex].text} → ${netConclusion()}`, "sys");
-  });
+  setRegion(localStorage.getItem("nbtest.region") || "");
+  for (const id of REGION_SELECTS) {
+    const el = $(id);
+    if (el) el.addEventListener("change", (e) => setRegion(e.target.value));
+  }
 })();
 
 applyI18n();
