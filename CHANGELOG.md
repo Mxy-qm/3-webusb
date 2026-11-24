@@ -31,7 +31,7 @@
 
 ### 验证
 
-新增 `_tests/test-searchstat.mjs`（**34 项全过**）：四个阶段的文案与配色、超时后的动作与命令、多频放大到 18 分钟、已注册时该行必须消失、SIM 未就绪不挂倒计时、320 px 无横向溢出、三语文案不漏译。回归：`test-age.mjs`（56 项）、`test-netselfcheck.mjs`（44 项）、`test-region-ui.mjs`（25 项）、`test-openretry.mjs`（6 项）全过。
+新增 `_tests/test-searchstat.mjs`（**35 项全过**）：四个阶段的文案与配色、超时后的动作与命令、多频放大到 18 分钟、已注册时该行必须消失、SIM 未就绪不挂倒计时、320 px 无横向溢出、三语文案不漏译。回归：`test-age.mjs`（56 项）、`test-netselfcheck.mjs`（44 项）、`test-region-ui.mjs`（25 项）、`test-openretry.mjs`（6 项）全过。
 
 ## v0.7.10-alpha · 2026-11-24
 
