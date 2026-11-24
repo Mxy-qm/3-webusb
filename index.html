@@ -123,6 +123,10 @@
   .atrack.old i { background: var(--red); }
   #saveHint.warn { color: var(--amber); font-weight: 600; }
   #netStat.warn { color: var(--amber); font-weight: 600; }
+  /* 搜网等待状态：未注册时最该被看见的是"还要等多久、到什么时候判死、判了干什么" */
+  .sstat { margin-top: 10px; font-size: .84rem; line-height: 1.45; color: var(--muted); word-break: break-word; }
+  .sstat.soon { color: var(--amber); font-weight: 600; }
+  .sstat.over { color: var(--red); font-weight: 600; }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
   td, th { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
@@ -224,6 +228,8 @@
     </div>
     <div class="meta" id="simpleMeta"></div>
     <div class="atrack" id="ageTrack" hidden><i id="ageFill"></i></div>
+    <!-- 未注册时告诉使用者还要等多久、什么时候判无覆盖（简单页只给动作，不给命令） -->
+    <div class="sstat" id="searchStatSimple" hidden></div>
     <!-- 简单视图也给地区入口：在国外/国内都要能看到该用哪些频段（只给短码，不给命令） -->
     <div class="row" style="margin-top:12px;justify-content:center;gap:6px">
       <label class="muted" style="display:flex;align-items:center;gap:5px;font-size:.82rem;min-width:0">
@@ -251,6 +257,7 @@
     </div>
     <div class="muted" id="bandAdvice" style="font-size:.82rem;margin-top:6px;min-width:0;word-break:break-word"></div>
     <div class="muted" id="netStat" style="margin-top:8px"></div>
+    <div class="sstat" id="searchStatAdv" hidden></div>
     <table>
       <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
       <tr><td>RSRQ</td><td class="v" id="mRsrq">--</td></tr>
@@ -262,6 +269,9 @@
       <tr><td>PCI</td><td class="v" id="mPci">--</td></tr>
       <tr><td>Band</td><td class="v" id="mBand">--</td></tr>
       <tr><td>Cell ID</td><td class="v" id="mCell">--</td></tr>
+      <!-- TX time = 0 是"从未发出上行"的铁证：没驻留就不会发，排查时比 RSRP 更直接 -->
+      <tr><td>RX time</td><td class="v" id="mRx">--</td></tr>
+      <tr><td>TX time</td><td class="v" id="mTx">--</td></tr>
     </table>
     <div class="muted" style="margin-top:8px" data-i18n="eclNote">ECL = 覆盖增强等级：0 最好、1 中等、2 最差（数值越小信号越强）。</div>
     <div class="row" style="margin-top:12px">
@@ -988,8 +998,8 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.10-alpha";
-const APP_BUILD = "2026-11-20";
+const APP_VERSION = "0.7.11-alpha";
+const APP_BUILD = "2026-11-24";
 
 /* ================= i18n ================= */
 const I18N = {
@@ -1082,6 +1092,39 @@ const I18N = {
     en: "Conclusion: no cell found — ① check the antenna is attached ② B20 is not enabled (much of Europe uses 800 MHz) → try AT+NBAND=1,3,5,8,20,28 then AT+NRB",
   },
   netUnreg: { zh: "网络未注册", zhHant: "網路未註冊", en: "network not registered" },
+  // ---- 搜网等待状态 ----
+  durSec: { zh: "{n} 秒", zhHant: "{n} 秒", en: "{n}s" },
+  durMinSec: { zh: "{m} 分 {s} 秒", zhHant: "{m} 分 {s} 秒", en: "{m}m {s}s" },
+  searchWait: {
+    zh: "搜网中 {dur} · 单频最坏约 3 分钟，继续等",
+    zhHant: "搜網中 {dur} · 單頻最壞約 3 分鐘，繼續等",
+    en: "Searching {dur} · one band can take ~3 min, keep waiting",
+  },
+  searchSoon: {
+    zh: "搜网中 {dur} · 弱覆盖下正常，等满 3 分钟再判",
+    zhHant: "搜網中 {dur} · 弱覆蓋下正常，等滿 3 分鐘再判",
+    en: "Searching {dur} · normal at weak coverage — wait the full 3 min before judging",
+  },
+  searchOver: {
+    zh: "已搜 {dur} 仍无小区 → 判无覆盖：查天线 / 换位置 / 确认频段",
+    zhHant: "已搜 {dur} 仍無小區 → 判無覆蓋：查天線 / 換位置 / 確認頻段",
+    en: "No cell after {dur} → treat as no coverage: check antenna / move / confirm band",
+  },
+  searchMulti: {
+    zh: "搜网中 {dur} · 开了 {n} 个频段，弱覆盖下最坏要 {min} 分钟 → 先收窄频段再等",
+    zhHant: "搜網中 {dur} · 開了 {n} 個頻段，弱覆蓋下最壞要 {min} 分鐘 → 先收窄頻段再等",
+    en: "Searching {dur} · {n} bands enabled, worst case ~{min} min → narrow the bands first",
+  },
+  searchOverCmd: {
+    zh: "收窄：AT+NBAND={bands} → AT+NRB",
+    zhHant: "收窄：AT+NBAND={bands} → AT+NRB",
+    en: "Narrow: AT+NBAND={bands} → AT+NRB",
+  },
+  searchPickRegion: {
+    zh: "先在上面选地区，才知道该收窄到哪几个频段",
+    zhHant: "先在上面選地區，才知道該收窄到哪幾個頻段",
+    en: "Pick a region above to know which bands to narrow to",
+  },
   netModule: { zh: "模块", zhHant: "模組", en: "Module" },
   netCfg: { zh: "配置", zhHant: "配置", en: "Config" },
   netCeer: { zh: "拒绝原因", zhHant: "拒絕原因", en: "Reject cause" },
@@ -1536,7 +1579,7 @@ function schedulePoll() {
   })();
   startWatchdog();
   // 每秒只刷新年龄条和保存提示。不能每秒 renderAll()——那会连带重建记录列表。
-  state.ageTimer = setInterval(() => { renderAge(); updateSaveState(); }, 1000);
+  state.ageTimer = setInterval(() => { renderAge(); updateSaveState(); renderSearchStat(); }, 1000);
 }
 
 // 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
@@ -1604,6 +1647,7 @@ function parseNuestats(lines) {
     else if ((r = /PCI:\s*(-?\d+)/i.exec(l))) m.pci = +r[1];
     else if ((r = /Cell ID:\s*(-?\d+)/i.exec(l))) m.cellId = +r[1];
     else if ((r = /CURRENT BAND:\s*(-?\d+)/i.exec(l))) m.band = +r[1];
+    else if ((r = /TX time:\s*(-?\d+)/i.exec(l))) m.txTime = +r[1];
     else if ((r = /RX time:\s*(-?\d+)/i.exec(l))) m.rxTime = +r[1];
   }
   return sanitize(m);
@@ -1919,6 +1963,82 @@ function renderBandAdvice() {
   if (hint) { hint.textContent = shortText; hint.classList.toggle("warn", warn); }
 }
 
+/* ================= 搜网等待状态 =================
+ * 修的问题：未注册时界面以前只有「无有效读数 / --」，使用者不知道该等多久、
+ * 什么时候该判无覆盖、判了之后干什么——于是要么过早判死、要么干等二十分钟。
+ *
+ * 阈值依据（1-hardware/nb-iot-field-test-module-selection.md §各地频段）：
+ *   Quectel 官方扫描时间表：单频段在 SNR -12dB 时 B20 需 157s、B3 需 386s。
+ *   → 单频取 180s 作判死线（覆盖 B20 最坏值 + 余量）；
+ *   → 多频按 180s/频段放大，六频全开 = 18 分钟，与"六频累计可超 20 分钟"的实测口径一致。
+ */
+const SEARCH_BAND_LIMIT_MS = 180000;
+const SEARCH_SOON_MS = 60000;
+
+function searchElapsedMs() {
+  // 测试注入：验证"已等 4 分钟"的分支不可能真在测试里等 4 分钟
+  if (typeof window.__testSearchMs === "number") return window.__testSearchMs;
+  // 用"连上到现在"而不是模组 RX time：RX time 是开机以来的累计接收时长，
+  // 模组早先在别处驻留过的话它是个大数，会把"刚失去小区"误判成"已经搜了很久"。
+  return state.connAt ? Date.now() - state.connAt : null;
+}
+
+function durText(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return tFill("durSec", { n: s });
+  return tFill("durMinSec", { m: Math.floor(s / 60), s: String(s % 60).padStart(2, "0") });
+}
+
+// 返回 {cls, short, action} 或 null（已注册 / SIM 未就绪 / 根本没在搜）
+function searchStatus() {
+  if (!state.connected || !state.reading) return null;
+  // 模组报了频段就说明已经驻留，不需要再提示等待（自检没跑也能靠这条兜住）
+  if (state.reading.band) return null;
+  if (state.net) {
+    if (state.net.reg === 1 || state.net.reg === 5) return null;   // 已注册
+    if (!state.net.cpReady) return null;                           // SIM 没就绪，等也没用
+  }
+  const ms = searchElapsedMs();
+  if (ms === null) return null;
+
+  const bands = (state.net && state.net.bands) || [];
+  const n = bands.length;
+  const want = regionBands();
+  const action = want && want.length
+    ? tFill("searchOverCmd", { bands: want.join(",") })
+    : t("searchPickRegion");
+  const dur = durText(ms);
+
+  if (n >= 2) {
+    const limitMs = SEARCH_BAND_LIMIT_MS * n;
+    return {
+      cls: ms >= limitMs ? "over" : "soon",
+      short: tFill("searchMulti", { dur, n, min: Math.round(limitMs / 60000) }),
+      action,
+    };
+  }
+  if (ms >= SEARCH_BAND_LIMIT_MS) {
+    return { cls: "over", short: tFill("searchOver", { dur }), action };
+  }
+  if (ms >= SEARCH_SOON_MS) {
+    return { cls: "soon", short: tFill("searchSoon", { dur }), action: "" };
+  }
+  return { cls: "wait", short: tFill("searchWait", { dur }), action: "" };
+}
+
+// 简单页只放动作（不含命令），高级页带上具体命令——沿用"简单短码 / 高级完整"的分工
+function renderSearchStat() {
+  const st = searchStatus();
+  const put = (el, text, cls) => {
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || "";
+    el.className = "sstat" + (text ? " " + cls : "");
+  };
+  put($("searchStatSimple"), st ? st.short : "", st ? st.cls : "");
+  put($("searchStatAdv"), st ? (st.action ? st.short + " — " + st.action : st.short) : "", st ? st.cls : "");
+}
+
 /* ================= 渲染 ================= */
 function fmt(v, digits) {
   if (v === null || v === undefined || isNaN(v)) return "--";
@@ -1963,6 +2083,7 @@ function renderAll() {
   }
   renderAge();
   renderNetStat();
+  renderSearchStat();
   renderBandAdvice();
 
   $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
@@ -1975,6 +2096,9 @@ function renderAll() {
   $("mPci").textContent = fmt(r.pci);
   $("mBand").textContent = r.band ? "B" + r.band : "--";
   $("mCell").textContent = fmt(r.cellId);
+  const secOf = (v) => (v === null || v === undefined || isNaN(v) ? "--" : (v / 1000).toFixed(1) + " s");
+  $("mRx").textContent = secOf(r.rxTime);
+  $("mTx").textContent = secOf(r.txTime);
 
   updateSaveState();
   renderRecords();
