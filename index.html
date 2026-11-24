@@ -988,7 +988,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.9-alpha";
+const APP_VERSION = "0.7.10-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -1093,9 +1093,9 @@ const I18N = {
     en: "First camp: cell acquired {s}s after connecting (B{band} · PCI {pci} · RSRP {rsrp})",
   },
   conclBandTooMany: {
-    zh: "结论：未注册，且开了 {n} 个频段 —— NB-IoT 盲扫很慢（弱信号下每频段 1~6 分钟），频段越多越慢。按 1NCE 覆盖表：欧洲绝大多数运营商是 B20，少数 B8（奥/保/德/荷/瑞典），挪威还有 B3 → 欧洲设 AT+NBAND=3,8,20；中国/香港是 B8 → 设 AT+NBAND=8（北美频段本模块不支持）。改完 AT+NRB 重启",
-    zhHant: "結論：未註冊，且開了 {n} 個頻段 —— NB-IoT 盲掃很慢（弱訊號下每個頻段 1~6 分鐘），頻段越多越慢。依 1NCE 覆蓋表：歐洲絕大多數業者是 B20，少數 B8（奧/保/德/荷/瑞典），挪威還有 B3 → 歐洲設 AT+NBAND=3,8,20；中國/香港是 B8 → 設 AT+NBAND=8（北美頻段本模組不支援）。改完 AT+NRB 重啟",
-    en: "Conclusion: not registered and {n} bands are enabled — NB-IoT blind scan is slow (1-6 min per band at weak signal). Per the 1NCE coverage list: most of Europe is B20, a few B8 (AT/BG/DE/NL/SE), Norway also B3 → Europe: AT+NBAND=3,8,20; China/Hong Kong is B8 → AT+NBAND=8 (North American bands are unsupported by this module). Then AT+NRB",
+    zh: "结论：未注册，且开了 {n} 个频段 —— NB-IoT 盲扫很慢（弱信号下每频段 1~6 分钟），频段越多越慢。按 1NCE 覆盖表：欧洲绝大多数运营商是 B20，少数 B8（奥/保/德/荷/瑞典），挪威还有 B3 → 欧洲设 AT+NBAND=3,8,20；中国大陆/中国香港是 B8 → 设 AT+NBAND=8（北美频段本模块不支持）。改完 AT+NRB 重启",
+    zhHant: "結論：未註冊，且開了 {n} 個頻段 —— NB-IoT 盲掃很慢（弱訊號下每個頻段 1~6 分鐘），頻段越多越慢。依 1NCE 覆蓋表：歐洲絕大多數業者是 B20，少數 B8（奧/保/德/荷/瑞典），挪威還有 B3 → 歐洲設 AT+NBAND=3,8,20；中國大陸/中國香港是 B8 → 設 AT+NBAND=8（北美頻段本模組不支援）。改完 AT+NRB 重啟",
+    en: "Conclusion: not registered and {n} bands are enabled — NB-IoT blind scan is slow (1-6 min per band at weak signal). Per the 1NCE coverage list: most of Europe is B20, a few B8 (AT/BG/DE/NL/SE), Norway also B3 → Europe: AT+NBAND=3,8,20; Mainland China / Hong Kong is B8 → AT+NBAND=8 (North American bands are unsupported by this module). Then AT+NRB",
   },
   conclCrFlags: {
     zh: "结论：未注册，且 CR_0859_SI_AVOID 为 FALSE —— 德电/T-Mobile 系网络要求它为 TRUE。试：AT+NCONFIG=AUTOCONNECT,TRUE 后 AT+NRB",
@@ -1111,9 +1111,9 @@ const I18N = {
   groupOther: { zh: "其他", zhHant: "其他", en: "Other" },
   regionOther: { zh: "其他 / 不确定", zhHant: "其他 / 不確定", en: "Other / unsure" },
   regionNoneHint: {
-    zh: "未选地区 —— 欧洲多为 20、中国/香港 8、北美不支持",
-    zhHant: "未選地區 —— 歐洲多為 20、中國/香港 8、北美不支援",
-    en: "No region chosen — Europe is mostly 20, China/HK 8, North America unsupported",
+    zh: "未选地区 —— 欧洲多为 20、中国大陆/中国香港 8、北美不支持",
+    zhHant: "未選地區 —— 歐洲多為 20、中國大陸/中國香港 8、北美不支援",
+    en: "No region chosen — Europe is mostly 20, Mainland China / Hong Kong 8, North America unsupported",
   },
   regionHintShort: { zh: "建议 {bands}", zhHant: "建議 {bands}", en: "Bands {bands}" },
   regionHintNA: { zh: "本模块不支持", zhHant: "本模組不支援", en: "unsupported" },
@@ -1863,9 +1863,9 @@ const COUNTRY_BANDS = [
   { code: "li", g: "eu", b: [3, 8, 20], gap: true, zh: "列支敦士登", hant: "列支敦斯登", en: "Liechtenstein" },
   { code: "si", g: "eu", b: [3, 8, 20], gap: true, zh: "斯洛文尼亚", hant: "斯洛維尼亞", en: "Slovenia" },
   // ---- 亚洲 ----
-  { code: "cn", g: "asia", b: [8], zh: "中国", hant: "中國", en: "China" },
-  { code: "hk", g: "asia", b: [8], src: "measured", zh: "香港", hant: "香港", en: "Hong Kong" },
-  { code: "tw", g: "asia", b: [8], zh: "台湾", hant: "台灣", en: "Taiwan" },
+  { code: "cn", g: "asia", b: [8], zh: "中国大陆", hant: "中國大陸", en: "Mainland China" },
+  { code: "hk", g: "asia", b: [8], src: "measured", zh: "中国香港", hant: "中國香港", en: "Hong Kong, China" },
+  { code: "tw", g: "asia", b: [8], zh: "中国台湾", hant: "中國台灣", en: "Taiwan, China" },
   { code: "in", g: "asia", b: [3], zh: "印度", hant: "印度", en: "India" },
   // ---- 美洲 ----
   { code: "br", g: "am", b: [28], zh: "巴西", hant: "巴西", en: "Brazil" },
@@ -1880,7 +1880,10 @@ function countryByCode(code) {
   return COUNTRY_BANDS.find((c) => c.code === code) || null;
 }
 function countryName(c) {
-  return c ? (c[lang] || c.zh || c.en) : "";
+  if (!c) return "";
+  // 字段名是 hant（不是 zhHant），繁体要单独映射，否则会静默回落到简体
+  if (lang === "zhHant") return c.hant || c.zh || c.en;
+  return c[lang] || c.zh || c.en;
 }
 function regionBands() {
   const c = countryByCode(state.region);

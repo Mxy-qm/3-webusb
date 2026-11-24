@@ -4,6 +4,25 @@
 
 ---
 
+## v0.7.10-alpha · 2026-11-24
+
+**修正亚洲三项的地区写法**
+
+亚洲分组按规范写法改为：
+
+| 语言 | 中国大陆 | 中国香港 | 中国台湾 |
+|---|---|---|---|
+| 简体 | 中国大陆 | 中国香港 | 中国台湾 |
+| 繁體 | 中國大陸 | 中國香港 | 中國台灣 |
+| English | Mainland China | Hong Kong, China | Taiwan, China |
+
+顺带修掉一个**静默回落**的 bug：`COUNTRY_BANDS` 的繁体字段名是 `hant`，而 `countryName()` 用 `c[lang]` 取值（`lang === "zhHant"`），取不到就**无语回落到简体**——也就是说切到繁體时所有国名其实是简体的（德国而不是德國）。现在显式映射 `hant`。
+
+同步更新两处提到"中国/香港"的文案（`regionNoneHint`、`conclBandTooMany`）。
+
+### 验证
+`test-region-ui.mjs` 新增 4 项断言（**25 项全过**）：三语下亚洲三项写法逐字比对、`zhHant` 国名不回落简体；`test-age.mjs`（56 项）、`test-netselfcheck.mjs`（44 项）全过。
+
 ## v0.7.9-alpha · 2026-11-24
 
 **地区选择改成国家级、两个视图都有、修掉撑破屏幕；撤销一处未经确认的改动**
