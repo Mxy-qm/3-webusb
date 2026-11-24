@@ -233,6 +233,13 @@
       <span class="adot"></span><span class="atxt"></span><span class="apill"></span>
     </div>
     <div class="atrack" hidden><i></i></div>
+    <div class="row" style="margin-top:10px;gap:8px">
+      <label class="muted" style="display:flex;align-items:center;gap:6px;font-size:.85rem;flex:none;white-space:nowrap">
+        <span data-i18n="regionLabel">地区</span>
+        <select id="regionSel" style="padding:4px 20px 4px 6px;font-size:.85rem;flex:none"></select>
+      </label>
+      <span id="bandAdvice" class="muted" style="font-size:.82rem;flex:1;min-width:0"></span>
+    </div>
     <div class="muted" id="netStat" style="margin-top:8px"></div>
     <table>
       <tr><td>RSRP</td><td class="v" id="mRsrp">--</td></tr>
@@ -971,7 +978,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.7-alpha";
+const APP_VERSION = "0.7.8-alpha";
 const APP_BUILD = "2026-11-20";
 
 /* ================= i18n ================= */
@@ -1055,9 +1062,9 @@ const I18N = {
   },
   conclOk: { zh: "结论：已注册网络", zhHant: "結論：已註冊網路", en: "Conclusion: registered on the network" },
   conclNoCell: {
-    zh: "结论：模组在搜网但搜不到小区 → ① 检查天线是否接好 ② 确认当地 NB-IoT 频段在列表内（欧洲常见 B8/B20）",
-    zhHant: "結論：模組在搜網但搜不到小區 → ① 檢查天線是否接好 ② 確認當地 NB-IoT 頻段在列表內（歐洲常見 B8/B20）",
-    en: "Conclusion: searching but no cell found — ① check the antenna is attached ② confirm the local NB-IoT band is in the list (Europe commonly uses B8/B20)",
+    zh: "结论：模组在搜网但搜不到小区 → ① 检查天线是否接好 ② 确认当地 NB-IoT 频段在列表内（不确定时选上面的地区，会给出该地区的频段）",
+    zhHant: "結論：模組在搜網但搜不到小區 → ① 檢查天線是否接好 ② 確認當地 NB-IoT 頻段在列表內（不確定時選上面的地區，會給出該地區的頻段）",
+    en: "Conclusion: searching but no cell found — ① check the antenna is attached ② confirm the local NB-IoT band is in the list (pick a region above to see that region's bands)",
   },
   conclNoB20: {
     zh: "结论：搜不到小区 → ① 先检查天线是否接好 ② 频段列表里没有 B20（欧洲大量 NB-IoT 在 800MHz）→ 可试 AT+NBAND=1,3,5,8,20,28 后 AT+NRB 重启",
@@ -1084,6 +1091,41 @@ const I18N = {
     zh: "结论：未注册，且 CR_0859_SI_AVOID 为 FALSE —— 德电/T-Mobile 系网络要求它为 TRUE。试：AT+NCONFIG=AUTOCONNECT,TRUE 后 AT+NRB",
     zhHant: "結論：未註冊，且 CR_0859_SI_AVOID 為 FALSE —— 德電/T-Mobile 系網路要求它為 TRUE。試：AT+NCONFIG=AUTOCONNECT,TRUE 後 AT+NRB",
     en: "Conclusion: not registered and CR_0859_SI_AVOID is FALSE — Deutsche Telekom/T-Mobile networks require TRUE. Try AT+NCONFIG=AUTOCONNECT,TRUE then AT+NRB",
+  },
+  regionLabel: { zh: "地区", zhHant: "地區", en: "Region" },
+  regionCN: { zh: "中国 · 香港 · 台湾", zhHant: "中國 · 香港 · 台灣", en: "China / HK / Taiwan" },
+  regionEU: { zh: "欧洲", zhHant: "歐洲", en: "Europe" },
+  regionNA: { zh: "美国 / 北美", zhHant: "美國 / 北美", en: "US / North America" },
+  regionOther: { zh: "其他 / 不确定", zhHant: "其他 / 不確定", en: "Other / unsure" },
+  regionNoneHint: {
+    zh: "未选地区 —— 欧洲 3,8,20 · 中国/香港 8 · 北美不支持",
+    zhHant: "未選地區 —— 歐洲 3,8,20 · 中國/香港 8 · 北美不支援",
+    en: "No region chosen — Europe 3,8,20 · China/HK 8 · North America unsupported",
+  },
+  bandAdvice: {
+    zh: "建议频段 {bands} · 命令 AT+NBAND={bands} → AT+NRB",
+    zhHant: "建議頻段 {bands} · 指令 AT+NBAND={bands} → AT+NRB",
+    en: "Suggested bands {bands} · run AT+NBAND={bands} then AT+NRB",
+  },
+  bandAdviceNA: {
+    zh: "北美 NB-IoT 用 B2/B4/B12/B13/B66，本模块（BC28：B1/3/5/8/20/28）全不支持",
+    zhHant: "北美 NB-IoT 用 B2/B4/B12/B13/B66，本模組（BC28：B1/3/5/8/20/28）全不支援",
+    en: "North American NB-IoT uses B2/B4/B12/B13/B66 — this module (BC28: B1/3/5/8/20/28) supports none of them",
+  },
+  bandAdviceOther: {
+    zh: "该地区无法从 1NCE 覆盖表确定，保持全部频段或按当地运营商确认",
+    zhHant: "該地區無法從 1NCE 覆蓋表確定，保持全部頻段或依當地業者確認",
+    en: "Not determinable from the 1NCE list — keep all bands or confirm with the local operator",
+  },
+  conclRegionNA: {
+    zh: "结论：所选地区是北美 —— NB-IoT 频段 B2/B4/B12/B13/B66 本模块全不支持，换模组（如 BC66-NA / BG95）才能用",
+    zhHant: "結論：所選地區是北美 —— NB-IoT 頻段 B2/B4/B12/B13/B66 本模組全不支援，換模組（如 BC66-NA / BG95）才能用",
+    en: "Conclusion: region is North America — this module supports none of B2/B4/B12/B13/B66; you need another module (e.g. BC66-NA / BG95)",
+  },
+  conclBandNarrow: {
+    zh: "结论：未注册，且当前频段 {cur} 与该地区的 {want} 不一致 —— 设 AT+NBAND={want} 后 AT+NRB 重启，首扫时间能大幅缩短",
+    zhHant: "結論：未註冊，且當前頻段 {cur} 與該地區的 {want} 不一致 —— 設 AT+NBAND={want} 後 AT+NRB 重啟，首掃時間能大幅縮短",
+    en: "Conclusion: not registered, and current bands {cur} differ from this region's {want} — set AT+NBAND={want} then AT+NRB; first scan gets much faster",
   },
   pickerEmpty: {
     zh: "没有可选设备（或你点了取消）。如果确实插着测试棒：① 拔掉等 10 秒再插 ② 关掉所有开过本页面的标签页后重新打开 ③ 仍为空 = 系统没识别到设备，换一根线 / 换个 USB 口（可用诊断页 ④ 确认）",
@@ -1166,6 +1208,7 @@ const state = {
   net: null,           // 最近一次网络自检结果（SIM / 注册状态 / 频段 / 模块 / 配置 / 拒绝原因）
   connAt: null,        // 本次连接成功的时刻（算首次入网耗时）
   firstCampAt: null,   // 首次拿到有效小区的时刻
+  region: localStorage.getItem("nbtest.region") || "",  // 用户自己选的地区（工具无法自动判断）
   watchdog: null,      // 看门狗定时器
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
@@ -1731,11 +1774,20 @@ function netConclusion() {
   if (net.reg === 3) return t("conclDenied");
   if (net.reg === 1 || net.reg === 5) return t("conclOk");
   // 未注册。按"最可能马上能解决"的顺序给建议：
+  if (state.region === "na") return t("conclRegionNA");
   if (net.cr859 === "FALSE") return t("conclCrFlags");
-  if (net.bands.length > 3) return t("conclBandTooMany").replace("{n}", String(net.bands.length));
+  const want = regionBands();
+  if (want && want.length) {
+    const same = want.length === net.bands.length && want.every((b) => net.bands.includes(b));
+    if (!same) return tFill("conclBandNarrow", { cur: net.bands.join(",") || "--", want: want.join(",") });
+  } else if (net.bands.length > 3) {
+    return tFill("conclBandTooMany", { n: net.bands.length });
+  }
   const csq = state.reading ? state.reading.csq : null;
   const noCell = csq === 99 || csq === null || csq === undefined;
-  if (noCell && net.bands.length && !net.bands.includes(20)) return t("conclNoB20");
+  // 选了"中国/香港"或"北美"时别再提 B20（那是欧洲的频段，会把国内用户带偏）
+  const b20Hint = state.region !== "cn" && state.region !== "na";
+  if (noCell && b20Hint && net.bands.length && !net.bands.includes(20)) return t("conclNoB20");
   return t("conclNoCell");
 }
 
@@ -1751,6 +1803,33 @@ function renderNetStat() {
     net.bands.length ? `${t("netBand")}: ${net.bands.join(",")}` : "",
   ].filter(Boolean).join(" · ");
   el.classList.toggle("warn", !ok);
+}
+
+/* ================= 区域频段（数据来自 1NCE 覆盖导出表） ================= */
+// 工具无法知道自己在哪（模组没注册时 COPS/CEREG 全空，IMSI 的 MCC 只是卡的归属国），
+// 所以直接让用户选地区，再给对应命令。选"北美"会明确告诉用户本模块用不了。
+const REGION_BANDS = {
+  cn: [8],                    // 1NCE 表：中国 B8、台湾 B8；香港实测 B8
+  eu: [3, 8, 20],             // 1NCE 表：欧洲 20 国以 B20 为主，少数 B8，挪威 B3
+  na: null,                   // 北美 B2/B4/B12/B13/B66 —— BC28 一个都不支持
+  other: null,                // 无法从表里确定
+};
+
+function regionBands() {
+  const r = state.region;
+  return r && REGION_BANDS[r] ? REGION_BANDS[r] : null;
+}
+
+function renderBandAdvice() {
+  const el = $("bandAdvice");
+  if (!el) return;
+  const r = state.region;
+  if (!r) { el.textContent = t("regionNoneHint"); el.classList.remove("warn"); return; }
+  if (r === "na") { el.textContent = t("bandAdviceNA"); el.classList.add("warn"); return; }
+  const bands = REGION_BANDS[r];
+  if (!bands) { el.textContent = t("bandAdviceOther"); el.classList.remove("warn"); return; }
+  el.textContent = tFill("bandAdvice", { bands: bands.join(",") });
+  el.classList.remove("warn");
 }
 
 /* ================= 渲染 ================= */
@@ -1797,6 +1876,7 @@ function renderAll() {
   }
   renderAge();
   renderNetStat();
+  renderBandAdvice();
 
   $("mRsrp").textContent = fmt(r.rsrp, 1) + " dBm";
   $("mRsrq").textContent = fmt(r.rsrq, 1) + " dB";
@@ -1967,6 +2047,21 @@ function switchView(v) {
   $("tabSimple").classList.toggle("active", v === "simple");
   $("tabAdvanced").classList.toggle("active", v === "advanced");
 }
+
+// 地区选择器：工具判断不了自己在哪，由用户选
+(function initRegion() {
+  const sel = $("regionSel");
+  const opts = [["", "regionNoneHint"], ["cn", "regionCN"], ["eu", "regionEU"], ["na", "regionNA"], ["other", "regionOther"]];
+  sel.innerHTML = opts.map(([v, k]) => `<option value="${v}">${t(k)}</option>`).join("");
+  sel.value = state.region;
+  sel.addEventListener("change", (e) => {
+    state.region = e.target.value;
+    localStorage.setItem("nbtest.region", state.region);
+    renderBandAdvice();
+    renderAll();
+    if (state.connected && state.net) log(`[${t("netCheck")}] ${t("regionLabel")}: ${sel.options[sel.selectedIndex].text} → ${netConclusion()}`, "sys");
+  });
+})();
 
 applyI18n();
 renderConnState();
