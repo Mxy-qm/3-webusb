@@ -280,8 +280,12 @@
     <div class="row" style="margin-top:12px">
       <button id="btnRefresh" data-i18n="refresh">刷新一次</button>
       <button id="btnNetCheck" class="ghost" data-i18n="netCheck">网络自检</button>
+      <button id="btnRestoreBands" class="ghost" data-i18n="bandRestore" hidden>还原原频段</button>
       <label class="muted" style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="autoPoll" checked> <span data-i18n="autoPoll">自动刷新（5 秒）</span>
+      </label>
+      <label class="muted" style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="autoApply" checked> <span data-i18n="autoApplyLbl">按地区自动改频段</span>
       </label>
     </div>
   </div>
@@ -1001,7 +1005,7 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.12-alpha";
+const APP_VERSION = "0.7.13-alpha";
 const APP_BUILD = "2026-11-25";
 
 /* ================= i18n ================= */
@@ -1118,6 +1122,11 @@ const I18N = {
     zhHant: "搜網中 {dur} · 開了 {n} 個頻段，弱覆蓋下最壞要 {min} 分鐘 → 先收窄頻段再等",
     en: "Searching {dur} · {n} bands enabled, worst case ~{min} min → narrow the bands first",
   },
+  searchMultiOk: {
+    zh: "搜网中 {dur} · 已按地区设为 {bands}（{n} 个频段），弱覆盖下最坏要 {min} 分钟",
+    zhHant: "搜網中 {dur} · 已依地區設為 {bands}（{n} 個頻段），弱覆蓋下最壞要 {min} 分鐘",
+    en: "Searching {dur} · set to {bands} for the region ({n} bands), worst case ~{min} min at weak coverage",
+  },
   searchOverCmd: {
     zh: "收窄：AT+NBAND={bands} → AT+NRB",
     zhHant: "收窄：AT+NBAND={bands} → AT+NRB",
@@ -1140,6 +1149,49 @@ const I18N = {
     en: "Tap Network self-check to read the CEER reject cause; missing roaming rights also looks like this",
   },
   notUsable: { zh: "未注册 · 不可用", zhHant: "未註冊 · 不可用", en: "Not registered · unusable" },
+  // ---- 按地区自动写入频段 ----
+  bandApplyLog: {
+    zh: "频段自动设置：当前 {cur} → 按地区「{country}」写入 {want}（原设置已备份，可在高级页还原）",
+    zhHant: "頻段自動設定：目前 {cur} → 依地區「{country}」寫入 {want}（原設定已備份，可於進階頁還原）",
+    en: "Bands set automatically: {cur} → {want} for {country} (previous setting backed up; restore in Advanced)",
+  },
+  bandApplyReboot: {
+    zh: "写入成功，AT+NRB 重启模块，等它重新入网（约 10~20 秒）…",
+    zhHant: "寫入成功，AT+NRB 重啟模組，等它重新入網（約 10~20 秒）…",
+    en: "Write OK — rebooting with AT+NRB, waiting for the module to come back (~10-20 s)…",
+  },
+  bandApplyNoAt: {
+    zh: "重启后没等到 AT 响应 —— 拔插一次设备再重连",
+    zhHant: "重啟後沒等到 AT 回應 —— 拔插一次裝置再重連",
+    en: "No AT response after reboot — unplug and reconnect the device",
+  },
+  bandApplyUp: {
+    zh: "模块已重启，重新自检…",
+    zhHant: "模組已重啟，重新自檢…",
+    en: "Module is back — re-running the self-check…",
+  },
+  bandApplyNow: { zh: "当前频段", zhHant: "目前頻段", en: "Bands now" },
+  bandApplyDone: {
+    zh: "频段已按地区设好（{want}），等它搜网入网",
+    zhHant: "頻段已依地區設好（{want}），等它搜網入網",
+    en: "Bands are now {want} — waiting for it to camp",
+  },
+  bandRestore: { zh: "还原原频段", zhHant: "還原原頻段", en: "Restore bands" },
+  autoApplyLbl: {
+    zh: "按地区自动改频段",
+    zhHant: "依地區自動改頻段",
+    en: "Auto-set bands by region",
+  },
+  bandRestoreDone: {
+    zh: "已还原原频段；本次会话不再自动改频段（重新选地区可恢复）",
+    zhHant: "已還原原頻段；本次工作階段不再自動改頻段（重新選地區可恢復）",
+    en: "Original bands restored; auto-apply is off for this session (pick a region again to re-enable)",
+  },
+  bandRestoreNone: {
+    zh: "没有可还原的备份（本机还没自动改过频段）",
+    zhHant: "沒有可還原的備份（本機還沒自動改過頻段）",
+    en: "No backup to restore (bands were never changed on this device)",
+  },
   netModule: { zh: "模块", zhHant: "模組", en: "Module" },
   netCfg: { zh: "配置", zhHant: "配置", en: "Config" },
   netCeer: { zh: "拒绝原因", zhHant: "拒絕原因", en: "Reject cause" },
@@ -1285,6 +1337,10 @@ const state = {
   firstCampAt: null,   // 首次拿到有效小区的时刻
   region: localStorage.getItem("nbtest.region") || "",  // 用户自己选的地区（工具无法自动判断）
   watchdog: null,      // 看门狗定时器
+  rebooting: false,    // AT+NRB 期间：轮询/看门狗都要停手，否则会被误判掉线
+  appliedKey: null,    // 本次会话已自动应用过的「地区→频段」组合，防止反复重启
+  autoApplyOff: false, // 用户手动还原过频段 → 本次会话不再自动改（重新选地区才恢复）
+  autoApply: localStorage.getItem("nbtest.autoApply") !== "0",  // 用户偏好：按地区自动写频段
   records: JSON.parse(localStorage.getItem("nbtest.records") || "[]")
 };
 
@@ -1589,7 +1645,12 @@ function schedulePoll() {
     while (state.pollActive && state.connected) {
       await sleep(5000);
       if (!state.pollActive || !state.connected) break;
-      if ($("autoPoll").checked) { await refresh(); await refreshReg(); }
+      if (state.rebooting) continue;   // 重启模块期间不发轮询，等它回来
+      if ($("autoPoll").checked) {
+        await refresh();
+        await refreshReg();
+        await applyRegionBands();
+      }
     }
   })();
   startWatchdog();
@@ -1617,11 +1678,125 @@ async function refreshReg() {
   renderAll();
 }
 
+/* ================= 按地区自动收窄频段 =================
+ * 为什么必须自动：现场是手机 + OTG，没有终端，「建议 AT+NBAND=20 → AT+NRB」
+ * 等于没做——实测那台 11 分钟一直在扫六频，`AT+NBAND=` 一次都没被发过。
+ *
+ * 规则（都为了不把设备搞成砖）：
+ *   · 只在「没注册」时动手：已经能注册/上报的机器不该被重启打断
+ *   · 只在读到当前频段、用户选了地区、且两边不一致时动手
+ *   · 动手前把原频段备份到 localStorage，高级页可一键还原
+ *   · 同一会话同一「地区→目标频段」只试一次，模块拒绝也不会无限重启
+ */
+const BAND_BACKUP_LS = "nbtest.bandBackup";
+
+function curBandsKey() {
+  const b = (state.net && state.net.bands) || [];
+  return b.slice().sort((x, y) => x - y).join(",");
+}
+
+function bandBackup() {
+  try { return JSON.parse(localStorage.getItem(BAND_BACKUP_LS) || "null"); } catch (e) { return null; }
+}
+
+async function applyRegionBands() {
+  if (!state.connected || state.rebooting || !state.net) return;
+  if (state.autoApplyOff) return;   // 用户刚手动还原过，别再改回去
+  if (!state.autoApply) return;     // 用户自己关掉了"按地区自动改频段"
+  const net = state.net;
+  if (!net.bands || !net.bands.length) return;              // 没读到当前频段不动手
+  if (net.reg === null) return;                             // 还不知道注册状态，先别动
+  if (net.reg === 1 || net.reg === 5) return;               // 已经能用，别打断
+  const want = regionBands();
+  if (!want || !want.length || regionIsUnsupported()) return;
+  const w = want.slice().sort((x, y) => x - y);
+  if (curBandsKey() === w.join(",")) return;                 // 已经是目标值
+  const key = state.region + ">" + w.join(",");
+  if (state.appliedKey === key) return;                      // 本会话已试过
+  state.appliedKey = key;
+  try {
+    localStorage.setItem(BAND_BACKUP_LS, JSON.stringify({ bands: net.bands.slice(), at: Date.now() }));
+  } catch (e) {}
+  renderRestoreBtn();
+
+  log(tFill("bandApplyLog", {
+    cur: net.bands.join(","), want: w.join(","), country: regionLabelText(),
+  }), "sys");
+  const res = await enqueue("AT+NBAND=" + w.join(","), 3000).catch(() => null);
+  if (!(res || []).some((l) => /^OK/i.test(l.trim()))) {
+    log("band apply failed: " + (res || []).join(" | "), "sys");
+    return;
+  }
+  await rebootModule();
+  log(tFill("bandApplyDone", { want: w.join(",") }), "sys");
+}
+
+async function rebootModule() {
+  state.rebooting = true;
+  log(t("bandApplyReboot"), "sys");
+  try { await enqueue("AT+NRB", 2000); } catch (e) {}
+  // 重启期间旧读数作废，不能让停止的数字继续冒充实时值
+  state.reading = null;
+  state.snapAt = null;
+  state.snapKey = null;
+  state.lastLink = null;
+  state.failCount = 0;
+  renderAll();
+  await sleep(9000);
+  const ready = await waitAtReady(15000);
+  state.rebooting = false;
+  if (!ready) { log(t("bandApplyNoAt"), "sys"); return; }
+  state.lastLineAt = Date.now();
+  log(t("bandApplyUp"), "sys");
+  await drainInput(300);
+  await networkSelfCheck();
+  await refresh();
+  log(t("bandApplyNow") + ": " + (curBandsKey() || "--"), "sys");
+  renderRestoreBtn();
+}
+
+async function waitAtReady(maxMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    const lines = await enqueue("AT", 1500).catch(() => null);
+    if ((lines || []).some((l) => /^OK/i.test(l.trim()))) return true;
+    await sleep(1000);
+  }
+  return false;
+}
+
+async function restoreBands() {
+  if (!state.connected || state.rebooting) return;
+  const b = bandBackup();
+  if (!b || !b.bands || !b.bands.length) { log(t("bandRestoreNone"), "sys"); return; }
+  state.appliedKey = null;   // 还原后允许下次再按地区应用
+  state.autoApplyOff = true; // 但本次会话不再自动改回去，否则还原等于没做
+  log(tFill("bandApplyLog", {
+    cur: curBandsKey() || "--", want: b.bands.join(","), country: t("bandRestore"),
+  }), "sys");
+  const res = await enqueue("AT+NBAND=" + b.bands.join(","), 3000).catch(() => null);
+  if (!(res || []).some((l) => /^OK/i.test(l.trim()))) {
+    log("band restore failed: " + (res || []).join(" | "), "sys");
+    return;
+  }
+  await rebootModule();
+  log(t("bandRestoreDone"), "sys");
+}
+
+function renderRestoreBtn() {
+  const el = $("btnRestoreBands");
+  if (!el) return;
+  const b = bandBackup();
+  el.hidden = !(b && b.bands && b.bands.length);
+  el.title = b && b.bands ? b.bands.join(",") : "";
+}
+
 // 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
 function startWatchdog() {
   stopWatchdog();
   state.watchdog = setInterval(() => {
     if (!state.connected) return;
+    if (state.rebooting) return;   // 模块重启中没响应是正常的，别误判掉线
     const now = Date.now();
     // 心跳靠轮询产生：关掉自动刷新后没有任何 AT 命令在发，此时根本没有心跳可言，
     // 不能据此判死（否则取消勾选 12 秒后就会误报"设备已断开"）。
@@ -2057,10 +2232,15 @@ function searchStatus() {
   const n = bands.length;
   if (n >= 2) {
     const limitMs = SEARCH_BAND_LIMIT_MS * n;
+    const min = Math.round(limitMs / 60000);
+    // 已经是地区建议的那几个频段了，就别再劝"先收窄"——否则会自相矛盾
+    const matchesRegion = !!(want && want.length && curBandsKey() === want.slice().sort((x, y) => x - y).join(","));
     return {
       cls: ms >= limitMs ? "over" : "soon",
-      short: tFill("searchMulti", { dur, n, min: Math.round(limitMs / 60000) }),
-      action,
+      short: matchesRegion
+        ? tFill("searchMultiOk", { dur, bands: curBandsKey(), n, min })
+        : tFill("searchMulti", { dur, n, min }),
+      action: matchesRegion ? "" : action,
     };
   }
   if (ms >= SEARCH_BAND_LIMIT_MS) {
@@ -2285,11 +2465,18 @@ $("btnConnect").addEventListener("click", connect);
 $("btnDisconnect").addEventListener("click", disconnect);
 $("btnRefresh").addEventListener("click", refresh);
 $("btnNetCheck").addEventListener("click", () => networkSelfCheck());
+$("btnRestoreBands").addEventListener("click", () => restoreBands());
 $("btnCopyLog").addEventListener("click", copyLog);
 $("btnClearLog").addEventListener("click", () => { $("log").textContent = ""; });
 $("btnSave").addEventListener("click", saveRecord);
 // 勾选框变化要立刻反映到年龄条/meta（否则关掉自动刷新后界面还写着"自动刷新中"）
 $("autoPoll").addEventListener("change", () => renderAll());
+// 自动改频段是默认行为；关掉它只影响"下次写入"，已经写进去的用「还原原频段」回滚
+$("autoApply").addEventListener("change", () => {
+  state.autoApply = $("autoApply").checked;
+  try { localStorage.setItem("nbtest.autoApply", state.autoApply ? "1" : "0"); } catch (e) {}
+  if (state.autoApply) void applyRegionBands();
+});
 
 $("btnExport").addEventListener("click", exportCsv);
 $("btnClear").addEventListener("click", () => {
@@ -2333,12 +2520,15 @@ function syncRegionSelects() {
 function setRegion(code) {
   // v0.7.8 存的是 eu/cn/na 这类大洲键，迁移时一律视为未选（不猜）
   state.region = (code === "other" || countryByCode(code)) ? code : "";
+  state.autoApplyOff = false;   // 重新选地区 = 用户又要按地区设置了
   try { localStorage.setItem("nbtest.region", state.region); } catch (e) {}
   syncRegionSelects();
   renderBandAdvice();
   renderAll();
   if (state.connected && state.net) {
     log(`[${t("netCheck")}] ${t("regionLabel")}: ${regionLabelText()} → ${netConclusion()}`, "sys");
+    // 选了地区就立刻把频段写进模块——现场是手机 + OTG，没人会去手敲 AT 命令
+    void applyRegionBands();
   }
 }
 
@@ -2353,6 +2543,8 @@ function setRegion(code) {
 applyI18n();
 renderConnState();
 $("verLine").textContent = `v${APP_VERSION} · build ${APP_BUILD}`;
+$("autoApply").checked = state.autoApply;
+renderRestoreBtn();
 log("ready", "sys");
 </script>
 </body>
