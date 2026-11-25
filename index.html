@@ -127,6 +127,9 @@
   .sstat { margin-top: 10px; font-size: .84rem; line-height: 1.45; color: var(--muted); word-break: break-word; }
   .sstat.soon { color: var(--amber); font-weight: 600; }
   .sstat.over { color: var(--red); font-weight: 600; }
+  /* 未注册时不许摆成"良好"：信号强度不等于能上报 */
+  .signal.unreg { border-color: #efd7a6; background: #fffaf1; }
+  .signal.unreg .lvl { color: var(--amber); }
 
   table { border-collapse: collapse; width: 100%; font-size: .88rem; }
   td, th { border-bottom: 1px solid var(--line); padding: 7px 8px; text-align: left; }
@@ -998,8 +1001,8 @@ exports.serial = new Serial();
 })();
 
 /* ================= 版本 ================= */
-const APP_VERSION = "0.7.11-alpha";
-const APP_BUILD = "2026-11-24";
+const APP_VERSION = "0.7.12-alpha";
+const APP_BUILD = "2026-11-25";
 
 /* ================= i18n ================= */
 const I18N = {
@@ -1125,6 +1128,18 @@ const I18N = {
     zhHant: "先在上面選地區，才知道該收窄到哪幾個頻段",
     en: "Pick a region above to know which bands to narrow to",
   },
+  // 锁到小区却没注册：这时"再等等"是错的建议，要查拒绝原因
+  searchLocked: {
+    zh: "已锁到小区 B{band} 但未注册 · 已等 {dur} → 别再等，查拒绝原因",
+    zhHant: "已鎖到小區 B{band} 但未註冊 · 已等 {dur} → 別再等，查拒絕原因",
+    en: "Camped on B{band} but not registered · {dur} → stop waiting, check the reject cause",
+  },
+  searchLockedAction: {
+    zh: "点「网络自检」读 CEER 拒绝原因；SIM 漫游没开通也是这种表现",
+    zhHant: "點「網路自檢」讀 CEER 拒絕原因；SIM 漫遊沒開通也是這種表現",
+    en: "Tap Network self-check to read the CEER reject cause; missing roaming rights also looks like this",
+  },
+  notUsable: { zh: "未注册 · 不可用", zhHant: "未註冊 · 不可用", en: "Not registered · unusable" },
   netModule: { zh: "模块", zhHant: "模組", en: "Module" },
   netCfg: { zh: "配置", zhHant: "配置", en: "Config" },
   netCeer: { zh: "拒绝原因", zhHant: "拒絕原因", en: "Reject cause" },
@@ -1574,12 +1589,32 @@ function schedulePoll() {
     while (state.pollActive && state.connected) {
       await sleep(5000);
       if (!state.pollActive || !state.connected) break;
-      if ($("autoPoll").checked) await refresh();
+      if ($("autoPoll").checked) { await refresh(); await refreshReg(); }
     }
   })();
   startWatchdog();
   // 每秒只刷新年龄条和保存提示。不能每秒 renderAll()——那会连带重建记录列表。
   state.ageTimer = setInterval(() => { renderAge(); updateSaveState(); renderSearchStat(); }, 1000);
+}
+
+/**
+ * 周期重读注册状态。
+ *
+ * 自检只在「连上」和「手点按钮」时跑，于是 state.net.reg 会永远停在那个时刻。
+ * 实测现场（eu_log2 + 10:47 截图）：连上时 +CEREG:0,2（搜网中），过了几分钟模组已经
+ * 锁到 B28、RSRP -84、CSQ 18，页面却还挂着「网络未注册」——注册状态是会变的，必须跟着刷。
+ */
+async function refreshReg() {
+  if (!state.connected || !state.net) return;
+  if (state.net.reg === 1 || state.net.reg === 5) return;   // 已注册就不用再问
+  const lines = (await enqueue("AT+CEREG?", 1500)) || [];
+  const m = firstMatch(lines, /\+CEREG:\s*\d+\s*,\s*(\d+)/i);
+  if (!m) return;
+  const reg = +m[1];
+  if (reg === state.net.reg) return;
+  state.net.reg = reg;
+  log(t("netReg") + ": " + regStateText(reg), "sys");
+  renderAll();
 }
 
 // 看门狗：覆盖"线松了但读流不报错"的情况——12 秒收不到任何响应即判定断开
@@ -1992,23 +2027,34 @@ function durText(ms) {
 // 返回 {cls, short, action} 或 null（已注册 / SIM 未就绪 / 根本没在搜）
 function searchStatus() {
   if (!state.connected || !state.reading) return null;
-  // 模组报了频段就说明已经驻留，不需要再提示等待（自检没跑也能靠这条兜住）
-  if (state.reading.band) return null;
-  if (state.net) {
-    if (state.net.reg === 1 || state.net.reg === 5) return null;   // 已注册
-    if (!state.net.cpReady) return null;                           // SIM 没就绪，等也没用
-  }
+  const net = state.net;
+  const reg = net ? net.reg : null;
+  const registered = reg === 1 || reg === 5;
+  if (registered) return null;            // 已注册：不需要任何等待/排查提示
+  if (net && !net.cpReady) return null;   // SIM 没就绪，等也没用
+
   const ms = searchElapsedMs();
   if (ms === null) return null;
-
-  const bands = (state.net && state.net.bands) || [];
-  const n = bands.length;
+  const dur = durText(ms);
   const want = regionBands();
   const action = want && want.length
     ? tFill("searchOverCmd", { bands: want.join(",") })
     : t("searchPickRegion");
-  const dur = durText(ms);
 
+  // 已锁到小区：这时候"再等等"是错的建议。
+  // 实测（eu_log2）：连上时 +CEREG:0,2，几分钟后已经锁到 B28、RSRP -84、CSQ 18，
+  // 页面却还挂着「网络未注册」——信号好不等于能上报，必须说清是接入问题。
+  if (state.reading.band) {
+    if (reg === null) return null;   // 还没自检过，不制造假警报
+    return {
+      cls: "over",
+      short: tFill("searchLocked", { band: state.reading.band, dur }),
+      action: t("searchLockedAction"),
+    };
+  }
+
+  const bands = (net && net.bands) || [];
+  const n = bands.length;
   if (n >= 2) {
     const limitMs = SEARCH_BAND_LIMIT_MS * n;
     return {
@@ -2054,12 +2100,18 @@ function renderAll() {
   // 三态：live 按等级着色 / stale 降饱和 / off 虚线灰框
   // 但要区分"从没连过"和"连上又掉了"——前者不该一上来就红字喊"设备已断开"
   const neverLinked = link === "off" && !state.everConnected;
-  card.className = "signal" + (g ? " g" + g : "") + (link === "stale" ? " stale" : "") +
+  // 未注册时不许摆成"良好"：信号强度不等于能上报（现场就出现过 Good + 未注册同屏）
+  const unreg = !!(state.net && state.net.reg !== null &&
+    state.net.reg !== 1 && state.net.reg !== 5 && link !== "off" && state.reading);
+  card.className = "signal" + (unreg ? " unreg" : (g ? " g" + g : "")) + (link === "stale" ? " stale" : "") +
     (link === "off" && !neverLinked ? " offline" : "");
 
   if (link === "off") {
     $("gradeNum").textContent = "–";
     $("gradeLvl").textContent = neverLinked ? t("noData") : t("offlineTitle");
+  } else if (unreg) {
+    $("gradeNum").textContent = "–";
+    $("gradeLvl").textContent = t("notUsable");
   } else {
     $("gradeNum").textContent = g ? String(g) : "–";
     $("gradeLvl").textContent = g ? t("lvl" + g)
